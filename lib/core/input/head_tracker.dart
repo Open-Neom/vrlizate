@@ -82,13 +82,18 @@ class HeadTracker {
     _pitchFused = 0.0;
     _rollFused = 0.0;
 
-    _accelSubscription = (accelerometerStreamOverride ?? accelerometerEventStream()).listen((event) {
-      _accelX = event.x;
-      _accelY = event.y;
-      _accelZ = event.z;
-    });
+    _accelSubscription =
+        (accelerometerStreamOverride ?? accelerometerEventStream()).listen((
+          event,
+        ) {
+          _accelX = event.x;
+          _accelY = event.y;
+          _accelZ = event.z;
+        });
 
-    _subscription = (gyroscopeStreamOverride ?? gyroscopeEventStream()).listen((event) {
+    _subscription = (gyroscopeStreamOverride ?? gyroscopeEventStream()).listen((
+      event,
+    ) {
       if (_calibrating) {
         _calibrationSumX += event.x;
         _calibrationSumY += event.y;
@@ -103,7 +108,10 @@ class HeadTracker {
       if (_lastTimestamp == null) {
         _lastTimestamp = now;
         final accelPitch = atan2(_accelY, _accelZ);
-        final accelRoll = atan2(-_accelX, sqrt(_accelY * _accelY + _accelZ * _accelZ));
+        final accelRoll = atan2(
+          -_accelX,
+          sqrt(_accelY * _accelY + _accelZ * _accelZ),
+        );
         _pitchFused = accelPitch;
         _rollFused = accelRoll;
         _prevPitchFused = accelPitch;
@@ -116,11 +124,16 @@ class HeadTracker {
 
       // 1. Calculate absolute pitch/roll from accelerometer gravity vector
       final accelPitch = atan2(_accelY, _accelZ);
-      final accelRoll = atan2(-_accelX, sqrt(_accelY * _accelY + _accelZ * _accelZ));
+      final accelRoll = atan2(
+        -_accelX,
+        sqrt(_accelY * _accelY + _accelZ * _accelZ),
+      );
 
       // 2. Blend accelerometer and integrated gyroscope values using Complementary Filter
-      _pitchFused = _alpha * (_pitchFused + adjustedX * dt) + (1 - _alpha) * accelPitch;
-      _rollFused = _alpha * (_rollFused + adjustedY * dt) + (1 - _alpha) * accelRoll;
+      _pitchFused =
+          _alpha * (_pitchFused + adjustedX * dt) + (1 - _alpha) * accelPitch;
+      _rollFused =
+          _alpha * (_rollFused + adjustedY * dt) + (1 - _alpha) * accelRoll;
 
       // 3. Compute delta movements
       final dPitchFused = _pitchFused - (_prevPitchFused ?? _pitchFused);

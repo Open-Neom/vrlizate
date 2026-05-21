@@ -63,7 +63,14 @@ void main() {
         expect(target.rotateCalls.isEmpty, isTrue);
 
         // Now send second gyroscope event after a small time delta
-        gyroController.add(GyroscopeEvent(0.5, 0.2, 0, now.add(const Duration(milliseconds: 50))));
+        gyroController.add(
+          GyroscopeEvent(
+            0.5,
+            0.2,
+            0,
+            now.add(const Duration(milliseconds: 50)),
+          ),
+        );
         async.flushMicrotasks();
 
         // Should have processed the second event and rotated
@@ -94,7 +101,14 @@ void main() {
 
         // Since the calibration average is X = 0.2, Y = -0.3,
         // sending a gyro event with exactly these values should produce 0 rotation!
-        gyroController.add(GyroscopeEvent(0.2, -0.3, 0, now.add(const Duration(milliseconds: 100))));
+        gyroController.add(
+          GyroscopeEvent(
+            0.2,
+            -0.3,
+            0,
+            now.add(const Duration(milliseconds: 100)),
+          ),
+        );
         async.flushMicrotasks();
 
         // If calibration works, the rotation should be exactly zero.

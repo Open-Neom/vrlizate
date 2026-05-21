@@ -10,10 +10,17 @@ void main() {
     test('parses minimal valid glTF JSON', () {
       final json = jsonEncode({
         'asset': {'version': '2.0'},
-        'scenes': [{'nodes': [0]}],
+        'scenes': [
+          {
+            'nodes': [0],
+          },
+        ],
         'scene': 0,
         'nodes': [
-          {'name': 'TestNode', 'translation': [1, 2, 3]},
+          {
+            'name': 'TestNode',
+            'translation': [1, 2, 3],
+          },
         ],
       });
 
@@ -30,10 +37,17 @@ void main() {
     test('parses node hierarchy', () {
       final json = jsonEncode({
         'asset': {'version': '2.0'},
-        'scenes': [{'nodes': [0]}],
+        'scenes': [
+          {
+            'nodes': [0],
+          },
+        ],
         'scene': 0,
         'nodes': [
-          {'name': 'parent', 'children': [1]},
+          {
+            'name': 'parent',
+            'children': [1],
+          },
           {'name': 'child'},
         ],
       });
@@ -48,10 +62,17 @@ void main() {
     test('parses node rotation as quaternion', () {
       final json = jsonEncode({
         'asset': {'version': '2.0'},
-        'scenes': [{'nodes': [0]}],
+        'scenes': [
+          {
+            'nodes': [0],
+          },
+        ],
         'scene': 0,
         'nodes': [
-          {'name': 'rotated', 'rotation': [0, 0.707, 0, 0.707]},
+          {
+            'name': 'rotated',
+            'rotation': [0, 0.707, 0, 0.707],
+          },
         ],
       });
 
@@ -64,10 +85,17 @@ void main() {
     test('parses node scale', () {
       final json = jsonEncode({
         'asset': {'version': '2.0'},
-        'scenes': [{'nodes': [0]}],
+        'scenes': [
+          {
+            'nodes': [0],
+          },
+        ],
         'scene': 0,
         'nodes': [
-          {'name': 'scaled', 'scale': [2, 3, 4]},
+          {
+            'name': 'scaled',
+            'scale': [2, 3, 4],
+          },
         ],
       });
 
@@ -80,7 +108,9 @@ void main() {
     test('parses materials with PBR', () {
       final json = jsonEncode({
         'asset': {'version': '2.0'},
-        'scenes': [{'nodes': []}],
+        'scenes': [
+          {'nodes': []},
+        ],
         'scene': 0,
         'nodes': [],
         'materials': [
@@ -91,7 +121,7 @@ void main() {
               'roughnessFactor': 0.2,
             },
             'doubleSided': true,
-          }
+          },
         ],
       });
 
@@ -100,7 +130,10 @@ void main() {
       expect(result.materials[0].metallic, closeTo(0.8, 1e-4));
       expect(result.materials[0].roughness, closeTo(0.2, 1e-4));
       expect(result.materials[0].doubleSided, isTrue);
-      expect((result.materials[0].color.r * 255.0).round().clamp(0, 255), equals(255));
+      expect(
+        (result.materials[0].color.r * 255.0).round().clamp(0, 255),
+        equals(255),
+      );
     });
 
     test('handles empty glTF gracefully', () {
@@ -122,7 +155,11 @@ void main() {
     test('handles missing optional fields', () {
       final json = jsonEncode({
         'asset': {'version': '2.0'},
-        'scenes': [{'nodes': [0]}],
+        'scenes': [
+          {
+            'nodes': [0],
+          },
+        ],
         'scene': 0,
         'nodes': [{}], // No name, no transform
       });

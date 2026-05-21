@@ -23,16 +23,30 @@ void main() {
     test('bone lookup by name finds all humanoid bones', () {
       final skeleton = Skeleton.humanoid();
       final expectedBones = [
-        'hip', 'spine', 'neck', 'head',
-        'leftShoulder', 'leftElbow', 'leftHand',
-        'rightShoulder', 'rightElbow', 'rightHand',
-        'leftHip', 'leftKnee', 'leftFoot',
-        'rightHip', 'rightKnee', 'rightFoot',
+        'hip',
+        'spine',
+        'neck',
+        'head',
+        'leftShoulder',
+        'leftElbow',
+        'leftHand',
+        'rightShoulder',
+        'rightElbow',
+        'rightHand',
+        'leftHip',
+        'leftKnee',
+        'leftFoot',
+        'rightHip',
+        'rightKnee',
+        'rightFoot',
       ];
 
       for (final name in expectedBones) {
-        expect(skeleton.findBone(name), isNotNull,
-          reason: 'Bone "$name" not found');
+        expect(
+          skeleton.findBone(name),
+          isNotNull,
+          reason: 'Bone "$name" not found',
+        );
       }
     });
 

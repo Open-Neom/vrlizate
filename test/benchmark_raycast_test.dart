@@ -26,7 +26,8 @@ void main() {
       for (var i = 0; i < 100; i++) {
         final ray = Ray.originDirection(
           Vector3.zero(),
-          Vector3((i % 10).toDouble() * 0.2, (i ~/ 10).toDouble() * 0.2, -1)..normalize(),
+          Vector3((i % 10).toDouble() * 0.2, (i ~/ 10).toDouble() * 0.2, -1)
+            ..normalize(),
         );
         raycaster.cast(ray, root);
       }
@@ -54,7 +55,11 @@ void main() {
       for (var i = 0; i < 1000; i++) {
         final ray = Ray.originDirection(
           Vector3.zero(),
-          Vector3((i % 50).toDouble() * 0.04 - 1, (i ~/ 50).toDouble() * 0.05, -1)..normalize(),
+          Vector3(
+            (i % 50).toDouble() * 0.04 - 1,
+            (i ~/ 50).toDouble() * 0.05,
+            -1,
+          )..normalize(),
         );
         raycaster.cast(ray, root);
       }
@@ -80,7 +85,8 @@ void main() {
 
       expect(hit, isNotNull);
       // Nearest non-root node should be z1 (at z=-1)
-      final nonRootHits = raycaster.cast(ray, root)
+      final nonRootHits = raycaster
+          .cast(ray, root)
           .where((h) => h.node.name != 'root')
           .toList();
       if (nonRootHits.isNotEmpty) {

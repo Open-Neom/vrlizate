@@ -37,18 +37,27 @@ void main() {
     });
 
     test('AABB fully inside returns inside', () {
-      final box = Aabb.fromCenterExtents(Vector3(0, 0, 2), Vector3(0.5, 0.5, 0.5));
+      final box = Aabb.fromCenterExtents(
+        Vector3(0, 0, 2),
+        Vector3(0.5, 0.5, 0.5),
+      );
       expect(frustum.testAabb(box), equals(CullResult.inside));
     });
 
     test('AABB fully outside returns outside', () {
-      final box = Aabb.fromCenterExtents(Vector3(0, 0, 50), Vector3(0.5, 0.5, 0.5));
+      final box = Aabb.fromCenterExtents(
+        Vector3(0, 0, 50),
+        Vector3(0.5, 0.5, 0.5),
+      );
       expect(frustum.testAabb(box), equals(CullResult.outside));
     });
 
     test('AABB straddling frustum boundary returns intersecting', () {
       // Box that crosses the near plane boundary
-      final box = Aabb.fromCenterExtents(Vector3(0, 0, 4.9), Vector3(0.5, 0.5, 0.5));
+      final box = Aabb.fromCenterExtents(
+        Vector3(0, 0, 4.9),
+        Vector3(0.5, 0.5, 0.5),
+      );
       final result = frustum.testAabb(box);
       // Could be inside or intersecting depending on frustum — both valid
       expect(result, isNot(equals(CullResult.outside)));

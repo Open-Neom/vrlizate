@@ -82,7 +82,10 @@ void main() {
 
       expect(hand.joints.length, equals(HandJoint.values.length));
       expect(hand.joint(HandJoint.wrist)?.x, closeTo(1, 1e-6));
-      expect(hand.joint(HandJoint.littleTip)?.x, closeTo(HandJoint.littleTip.index.toDouble(), 1e-6));
+      expect(
+        hand.joint(HandJoint.littleTip)?.x,
+        closeTo(HandJoint.littleTip.index.toDouble(), 1e-6),
+      );
     });
   });
 

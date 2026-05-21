@@ -96,7 +96,10 @@ void main() {
     });
 
     test('ipd alias returns interLensDistance', () {
-      expect(DeviceParams.cardboardV2.ipd, equals(DeviceParams.cardboardV2.interLensDistance));
+      expect(
+        DeviceParams.cardboardV2.ipd,
+        equals(DeviceParams.cardboardV2.interLensDistance),
+      );
     });
   });
 }

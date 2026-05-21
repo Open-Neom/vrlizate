@@ -13,11 +13,7 @@ void main() {
         final node = Node(name: 'body_$i');
         node.transform.position = Vector3(i.toDouble() * 3, 50, 0);
         node.onTransformChanged();
-        world.addBody(RigidBody(
-          node: node,
-          mass: 1,
-          restitution: 0.5,
-        ));
+        world.addBody(RigidBody(node: node, mass: 1, restitution: 0.5));
       }
 
       final sw = Stopwatch()..start();

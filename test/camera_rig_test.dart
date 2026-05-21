@@ -104,7 +104,7 @@ void main() {
 
       // Identity rotation (looking straight ahead)
       final leftViewIdentity = rig.leftViewMatrix;
-      
+
       // Rotate rig by 90 degrees around Yaw (looking fully right)
       rig.rotate(pi / 2, 0);
       final leftViewRotated = rig.leftViewMatrix;
@@ -115,7 +115,10 @@ void main() {
       final pointInRotatedEye = leftViewRotated * testPoint;
 
       // They must differ dynamically because the eye shifted and rotated around the neck pivot
-      expect(pointInIdentityEye.xyz.distanceTo(pointInRotatedEye.xyz), isNot(closeTo(0, 1e-6)));
+      expect(
+        pointInIdentityEye.xyz.distanceTo(pointInRotatedEye.xyz),
+        isNot(closeTo(0, 1e-6)),
+      );
     });
 
     test('Simultaneous symmetric translation offsets', () {

@@ -69,7 +69,8 @@ void main() {
       root.addChild(far);
 
       final ray = _ray(Vector3(0, 0, 0), Vector3(0, 0, -1));
-      final hits = raycaster.cast(ray, root)
+      final hits = raycaster
+          .cast(ray, root)
           .where((h) => h.node.name != 'root')
           .toList();
 

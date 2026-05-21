@@ -92,10 +92,7 @@ class MeshNode extends Node {
     }
 
     if (positions.isNotEmpty) {
-      final vertices = Vertices(
-        VertexMode.triangles,
-        positions,
-      );
+      final vertices = Vertices(VertexMode.triangles, positions);
       final paint = material.toPaint(lightFactor: 1.0);
       canvas.drawVertices(vertices, BlendMode.srcOver, paint);
     }
@@ -200,10 +197,7 @@ class LitMeshNode extends MeshNode {
           ..lineTo(tri.p1.dx, tri.p1.dy)
           ..lineTo(tri.p2.dx, tri.p2.dy)
           ..close();
-        canvas.drawPath(
-          path,
-          material.toPaint(lightFactor: tri.lightFactor),
-        );
+        canvas.drawPath(path, material.toPaint(lightFactor: tri.lightFactor));
       }
       return;
     }
@@ -229,8 +223,7 @@ class LitMeshNode extends MeshNode {
         positions,
         colors: colors,
       );
-      final basePaint = Paint()
-        ..blendMode = material.blendMode;
+      final basePaint = Paint()..blendMode = material.blendMode;
       canvas.drawVertices(vertices, BlendMode.srcOver, basePaint);
     }
   }

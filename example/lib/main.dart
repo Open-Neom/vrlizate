@@ -108,20 +108,56 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
 
     // ─── LATITUDE RINGS — proportional radius ───
     // ±30° (Tropics area) — medium rings
-    _ring('l30', _R * 0.866, _R * 0.5, 0.08,
-        const Color(0xFF00CCFF), const Color(0xFF0077AA));
-    _ring('l-30', _R * 0.866, -_R * 0.5, 0.08,
-        const Color(0xFF00CCFF), const Color(0xFF0077AA));
+    _ring(
+      'l30',
+      _R * 0.866,
+      _R * 0.5,
+      0.08,
+      const Color(0xFF00CCFF),
+      const Color(0xFF0077AA),
+    );
+    _ring(
+      'l-30',
+      _R * 0.866,
+      -_R * 0.5,
+      0.08,
+      const Color(0xFF00CCFF),
+      const Color(0xFF0077AA),
+    );
     // ±60° — smaller rings (clearly smaller than equator)
-    _ring('l60', _R * 0.5, _R * 0.866, 0.06,
-        const Color(0xFF0088DD), const Color(0xFF004477));
-    _ring('l-60', _R * 0.5, -_R * 0.866, 0.06,
-        const Color(0xFF0088DD), const Color(0xFF004477));
+    _ring(
+      'l60',
+      _R * 0.5,
+      _R * 0.866,
+      0.06,
+      const Color(0xFF0088DD),
+      const Color(0xFF004477),
+    );
+    _ring(
+      'l-60',
+      _R * 0.5,
+      -_R * 0.866,
+      0.06,
+      const Color(0xFF0088DD),
+      const Color(0xFF004477),
+    );
     // ±80° — small polar rings
-    _ring('l80', _R * 0.174, _R * 0.985, 0.04,
-        const Color(0xFF6666CC), const Color(0xFF333366));
-    _ring('l-80', _R * 0.174, -_R * 0.985, 0.04,
-        const Color(0xFF6666CC), const Color(0xFF333366));
+    _ring(
+      'l80',
+      _R * 0.174,
+      _R * 0.985,
+      0.04,
+      const Color(0xFF6666CC),
+      const Color(0xFF333366),
+    );
+    _ring(
+      'l-80',
+      _R * 0.174,
+      -_R * 0.985,
+      0.04,
+      const Color(0xFF6666CC),
+      const Color(0xFF333366),
+    );
 
     // ─── MERIDIANS — 6 great circles (every 30°), 10 segs each ───
     for (var j = 0; j < 6; j++) {
@@ -139,12 +175,24 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
     }
 
     // ─── AXES — thin beams ───
-    _beam('aX', const Color(0xFFFF4444), const Color(0xFFAA2222),
-        Vector3(_R * 2, 0.15, 0.15));
-    _beam('aY', const Color(0xFFCCCCFF), const Color(0xFF7777AA),
-        Vector3(0.15, _R * 2, 0.15));
-    _beam('aZ', const Color(0xFF4466FF), const Color(0xFF2233AA),
-        Vector3(0.15, 0.15, _R * 2));
+    _beam(
+      'aX',
+      const Color(0xFFFF4444),
+      const Color(0xFFAA2222),
+      Vector3(_R * 2, 0.15, 0.15),
+    );
+    _beam(
+      'aY',
+      const Color(0xFFCCCCFF),
+      const Color(0xFF7777AA),
+      Vector3(0.15, _R * 2, 0.15),
+    );
+    _beam(
+      'aZ',
+      const Color(0xFF4466FF),
+      const Color(0xFF2233AA),
+      Vector3(0.15, 0.15, _R * 2),
+    );
 
     // ─── CARDINAL SPHERES — glow markers ───
     _card('N', const Color(0xFFFF3333), Vector3(0, 0, -_R), 2.5);
@@ -164,45 +212,91 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
     _label('tD', 'NADIR', Vector3(0, -_R + 5, 0), 2.0, const Color(0xFF888888));
 
     // ─── LATITUDE LABELS ───
-    _label('t30', '30\u00b0N', Vector3(_R * 0.866 + 2, _R * 0.5, 0), 2.0,
-        const Color(0xFF00CCFF));
-    _label('t-30', '30\u00b0S', Vector3(_R * 0.866 + 2, -_R * 0.5, 0), 2.0,
-        const Color(0xFF00CCFF));
-    _label('t60', '60\u00b0N', Vector3(_R * 0.5 + 2, _R * 0.866, 0), 1.8,
-        const Color(0xFF0088DD));
-    _label('t-60', '60\u00b0S', Vector3(_R * 0.5 + 2, -_R * 0.866, 0), 1.8,
-        const Color(0xFF0088DD));
-    _label('tEq', 'EQUATOR', Vector3(_R + 3, 2, 0), 2.5,
-        const Color(0xFFFFDD00));
+    _label(
+      't30',
+      '30\u00b0N',
+      Vector3(_R * 0.866 + 2, _R * 0.5, 0),
+      2.0,
+      const Color(0xFF00CCFF),
+    );
+    _label(
+      't-30',
+      '30\u00b0S',
+      Vector3(_R * 0.866 + 2, -_R * 0.5, 0),
+      2.0,
+      const Color(0xFF00CCFF),
+    );
+    _label(
+      't60',
+      '60\u00b0N',
+      Vector3(_R * 0.5 + 2, _R * 0.866, 0),
+      1.8,
+      const Color(0xFF0088DD),
+    );
+    _label(
+      't-60',
+      '60\u00b0S',
+      Vector3(_R * 0.5 + 2, -_R * 0.866, 0),
+      1.8,
+      const Color(0xFF0088DD),
+    );
+    _label(
+      'tEq',
+      'EQUATOR',
+      Vector3(_R + 3, 2, 0),
+      2.5,
+      const Color(0xFFFFDD00),
+    );
 
     // ─── GROUND ───
-    engine.scene.add(LitMeshNode(
-      name: 'gnd',
-      geometry: PlaneGeometry(width: 120, height: 120),
-      material: VRMaterial(color: const Color(0xFF060610)),
-    )..transform.position = Vector3(0, -1.6, 0)
-     ..onTransformChanged());
+    engine.scene.add(
+      LitMeshNode(
+          name: 'gnd',
+          geometry: PlaneGeometry(width: 120, height: 120),
+          material: VRMaterial(color: const Color(0xFF060610)),
+        )
+        ..transform.position = Vector3(0, -1.6, 0)
+        ..onTransformChanged(),
+    );
 
     // ─── LIGHTS — mostly emissive scene ───
     engine.scene.add(Light.ambient(intensity: 0.5));
-    engine.scene.add(Light.directional(
-      direction: Vector3(-0.3, -1, -0.5), intensity: 0.35,
-    ));
+    engine.scene.add(
+      Light.directional(direction: Vector3(-0.3, -1, -0.5), intensity: 0.35),
+    );
   }
 
   void _ring(String n, double r, double y, double h, Color c, Color e) {
-    engine.scene.add(LitMeshNode(
-      name: n,
-      geometry: CylinderGeometry(radius: r, height: h, segments: 36),
-      material: VRMaterial(color: c, emissive: e, metallic: 0.5),
-    )..transform.position = Vector3(0, y, 0)
-     ..onTransformChanged());
+    engine.scene.add(
+      LitMeshNode(
+          name: n,
+          geometry: CylinderGeometry(radius: r, height: h, segments: 36),
+          material: VRMaterial(color: c, emissive: e, metallic: 0.5),
+        )
+        ..transform.position = Vector3(0, y, 0)
+        ..onTransformChanged(),
+    );
   }
 
-  void _meridianSeg(String n, double lon, double a1, double a2,
-      Color c, Color e, double thick) {
-    final p1 = Vector3(_R * cos(a1) * sin(lon), _R * sin(a1), _R * cos(a1) * cos(lon));
-    final p2 = Vector3(_R * cos(a2) * sin(lon), _R * sin(a2), _R * cos(a2) * cos(lon));
+  void _meridianSeg(
+    String n,
+    double lon,
+    double a1,
+    double a2,
+    Color c,
+    Color e,
+    double thick,
+  ) {
+    final p1 = Vector3(
+      _R * cos(a1) * sin(lon),
+      _R * sin(a1),
+      _R * cos(a1) * cos(lon),
+    );
+    final p2 = Vector3(
+      _R * cos(a2) * sin(lon),
+      _R * sin(a2),
+      _R * cos(a2) * cos(lon),
+    );
     final mid = (p1 + p2) * 0.5;
     final dir = p2 - p1;
     final seg = LitMeshNode(
@@ -217,7 +311,8 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
     final ax = up.cross(dn);
     if (ax.length > 0.001) {
       seg.transform.rotation = Quaternion.axisAngle(
-        ax.normalized(), acos(up.dot(dn).clamp(-1.0, 1.0)),
+        ax.normalized(),
+        acos(up.dot(dn).clamp(-1.0, 1.0)),
       );
     }
     seg.onTransformChanged();
@@ -225,25 +320,36 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
   }
 
   void _beam(String n, Color c, Color e, Vector3 s) {
-    engine.scene.add(LitMeshNode(
-      name: n,
-      geometry: CubeGeometry(size: 1),
-      material: VRMaterial(color: c, emissive: e),
-    )..transform.scale = s
-     ..onTransformChanged());
+    engine.scene.add(
+      LitMeshNode(
+          name: n,
+          geometry: CubeGeometry(size: 1),
+          material: VRMaterial(color: c, emissive: e),
+        )
+        ..transform.scale = s
+        ..onTransformChanged(),
+    );
   }
 
   void _card(String n, Color c, Vector3 p, double sz) {
-    engine.scene.add(LitMeshNode(
-      name: 'c$n',
-      geometry: SphereGeometry(radius: sz, segments: 8),
-      material: VRMaterial(
-        color: c,
-        emissive: Color.fromARGB(120, (c.r * 255).round(), (c.g * 255).round(), (c.b * 255).round()),
-        metallic: 0.7,
-      ),
-    )..transform.position = p
-     ..onTransformChanged());
+    engine.scene.add(
+      LitMeshNode(
+          name: 'c$n',
+          geometry: SphereGeometry(radius: sz, segments: 8),
+          material: VRMaterial(
+            color: c,
+            emissive: Color.fromARGB(
+              120,
+              (c.r * 255).round(),
+              (c.g * 255).round(),
+              (c.b * 255).round(),
+            ),
+            metallic: 0.7,
+          ),
+        )
+        ..transform.position = p
+        ..onTransformChanged(),
+    );
   }
 
   void _label(String n, String text, Vector3 p, double sz, Color c) {
@@ -290,7 +396,9 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
     for (final l in ['cN', 'cS', 'cE', 'cW', 'cUp', 'cDn']) {
       final n = engine.scene.root.findChild(l);
       if (n != null) {
-        n.transform.scale = Vector3.all(1.0 + sin(t * 1.5 + n.hashCode.toDouble()) * 0.06);
+        n.transform.scale = Vector3.all(
+          1.0 + sin(t * 1.5 + n.hashCode.toDouble()) * 0.06,
+        );
         n.onTransformChanged();
       }
     }
@@ -311,10 +419,7 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SizedBox.expand(
-        child: CustomPaint(
-          painter: _P(engine, _repaint),
-          size: Size.infinite,
-        ),
+        child: CustomPaint(painter: _P(engine, _repaint), size: Size.infinite),
       ),
     );
   }
@@ -327,6 +432,7 @@ class _P extends CustomPainter {
   void paint(Canvas c, Size s) {
     if (!s.isEmpty) e.renderPass.renderStereo(c, s);
   }
+
   @override
   bool shouldRepaint(_P o) => true;
 }

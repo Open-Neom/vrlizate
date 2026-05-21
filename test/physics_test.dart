@@ -63,7 +63,10 @@ void main() {
       expect(body.velocity.x, closeTo(10, 1e-4));
 
       body.update(1.0);
-      expect(node.transform.position.x, greaterThan(5)); // Damping reduces slightly
+      expect(
+        node.transform.position.x,
+        greaterThan(5),
+      ); // Damping reduces slightly
     });
 
     test('sleeping body wakes on impulse', () {

@@ -56,8 +56,11 @@ void main() {
       for (final geo in geometries) {
         for (final idx in geo.indices) {
           expect(idx, greaterThanOrEqualTo(0));
-          expect(idx, lessThan(geo.vertexCount),
-            reason: '${geo.runtimeType} index $idx >= ${geo.vertexCount}');
+          expect(
+            idx,
+            lessThan(geo.vertexCount),
+            reason: '${geo.runtimeType} index $idx >= ${geo.vertexCount}',
+          );
         }
       }
     });
@@ -66,8 +69,7 @@ void main() {
       final geo = SphereGeometry(radius: 3, segments: 16);
       final box = geo.aabb;
       for (final v in geo.vertices) {
-        expect(box.containsPoint(v), isTrue,
-          reason: 'Vertex $v outside AABB');
+        expect(box.containsPoint(v), isTrue, reason: 'Vertex $v outside AABB');
       }
     });
 
@@ -92,8 +94,11 @@ void main() {
       expect(total, greaterThan(0), reason: 'No valid normals found');
       // All normals should be consistent: either all outward or all inward
       final consistency = (positive > negative ? positive : negative) / total;
-      expect(consistency, greaterThan(0.95),
-        reason: 'Normals inconsistent: $positive outward, $negative inward');
+      expect(
+        consistency,
+        greaterThan(0.95),
+        reason: 'Normals inconsistent: $positive outward, $negative inward',
+      );
     });
   });
 }

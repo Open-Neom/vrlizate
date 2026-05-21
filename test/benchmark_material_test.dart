@@ -20,10 +20,7 @@ void main() {
     });
 
     test('wireframe material produces stroke paint', () {
-      final mat = VRMaterial(
-        color: const Color(0xFF00FF00),
-        wireframe: true,
-      );
+      final mat = VRMaterial(color: const Color(0xFF00FF00), wireframe: true);
 
       final paint = mat.toPaint(lightFactor: 1.0);
       expect(paint.style, equals(PaintingStyle.stroke));
@@ -50,10 +47,7 @@ void main() {
     });
 
     test('double-sided flag is preserved', () {
-      final mat = VRMaterial(
-        color: const Color(0xFFFFFFFF),
-        doubleSided: true,
-      );
+      final mat = VRMaterial(color: const Color(0xFFFFFFFF), doubleSided: true);
       expect(mat.doubleSided, isTrue);
 
       final mat2 = VRMaterial(color: const Color(0xFFFFFFFF));
@@ -62,7 +56,10 @@ void main() {
 
     test('opacity affects paint alpha', () {
       final opaque = VRMaterial(color: const Color(0xFFFF0000), opacity: 1.0);
-      final transparent = VRMaterial(color: const Color(0xFFFF0000), opacity: 0.5);
+      final transparent = VRMaterial(
+        color: const Color(0xFFFF0000),
+        opacity: 0.5,
+      );
 
       final opaquePaint = opaque.toPaint(lightFactor: 1.0);
       final transPaint = transparent.toPaint(lightFactor: 1.0);

@@ -46,8 +46,7 @@ void main() {
       final aabb = geo.aabb;
 
       for (final v in geo.vertices) {
-        expect(aabb.containsPoint(v), isTrue,
-          reason: 'Vertex $v outside AABB');
+        expect(aabb.containsPoint(v), isTrue, reason: 'Vertex $v outside AABB');
       }
     });
 
@@ -71,8 +70,11 @@ void main() {
 
       for (final geo in geometries) {
         for (final idx in geo.indices) {
-          expect(idx, lessThan(geo.vertexCount),
-            reason: 'Index $idx out of range for ${geo.runtimeType}');
+          expect(
+            idx,
+            lessThan(geo.vertexCount),
+            reason: 'Index $idx out of range for ${geo.runtimeType}',
+          );
           expect(idx, greaterThanOrEqualTo(0));
         }
       }

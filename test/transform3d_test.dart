@@ -43,14 +43,17 @@ void main() {
       expect(m.storage[0], closeTo(0, 1e-6));
     });
 
-    test('rotation quaternion stays normalized after multiple rotateEuler calls', () {
-      final t = Transform3D();
-      for (var i = 0; i < 1000; i++) {
-        t.rotateEuler(0.01, 0.02, 0.005);
-      }
-      final length = t.rotation.length;
-      expect(length, closeTo(1.0, 1e-4));
-    });
+    test(
+      'rotation quaternion stays normalized after multiple rotateEuler calls',
+      () {
+        final t = Transform3D();
+        for (var i = 0; i < 1000; i++) {
+          t.rotateEuler(0.01, 0.02, 0.005);
+        }
+        final length = t.rotation.length;
+        expect(length, closeTo(1.0, 1e-4));
+      },
+    );
 
     test('forward/right/up are orthogonal', () {
       final t = Transform3D();

@@ -19,7 +19,10 @@ void main() {
     test('handles missing meshes field', () {
       final json = jsonEncode({
         'nodes': [
-          {'name': 'empty_node', 'translation': [0, 0, 0]},
+          {
+            'name': 'empty_node',
+            'translation': [0, 0, 0],
+          },
         ],
       });
       final result = GltfParser.parseJson(json);
@@ -39,7 +42,9 @@ void main() {
       final json = jsonEncode({
         'nodes': nodes,
         'scenes': [
-          {'nodes': [0]}
+          {
+            'nodes': [0],
+          },
         ],
         'scene': 0,
       });
@@ -49,7 +54,20 @@ void main() {
     });
 
     test('rejects invalid GLB magic number', () {
-      final badGlb = Uint8List.fromList([0x00, 0x00, 0x00, 0x00, 0, 0, 0, 2, 0, 0, 0, 20]);
+      final badGlb = Uint8List.fromList([
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        20,
+      ]);
       expect(
         () => GltfParser.parseGlb(badGlb),
         throwsA(isA<FormatException>()),

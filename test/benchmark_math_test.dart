@@ -71,7 +71,8 @@ void main() {
 
   group('VrFrustum — Performance', () {
     test('frustum cull 10,000 AABBs < 50ms', () {
-      final vp = makePerspectiveMatrix(pi / 3, 16 / 9, 0.1, 100) *
+      final vp =
+          makePerspectiveMatrix(pi / 3, 16 / 9, 0.1, 100) *
           makeViewMatrix(Vector3(0, 0, 10), Vector3(0, 0, 0), Vector3(0, 1, 0));
       final frustum = VrFrustum.fromViewProjection(vp);
 
@@ -102,11 +103,13 @@ void main() {
 
       final sw = Stopwatch()..start();
       for (var i = 0; i < 100000; i++) {
-        aabb.expandToInclude(Vector3(
-          rng.nextDouble() * 200 - 100,
-          rng.nextDouble() * 200 - 100,
-          rng.nextDouble() * 200 - 100,
-        ));
+        aabb.expandToInclude(
+          Vector3(
+            rng.nextDouble() * 200 - 100,
+            rng.nextDouble() * 200 - 100,
+            rng.nextDouble() * 200 - 100,
+          ),
+        );
       }
       sw.stop();
 

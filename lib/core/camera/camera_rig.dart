@@ -44,7 +44,7 @@ class CameraRig implements RotationTarget {
 
   Matrix4 _viewMatrix(double eyeOffset) {
     final pos = headTransform.position;
-    
+
     // Google Cardboard Neck Model:
     // Shift eyes around the neck pivot (vertical: +0.075m, horizontal/depth: -0.080m)
     final localEye = Vector3(eyeOffset, 0.075, -0.080);
