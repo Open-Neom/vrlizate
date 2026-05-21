@@ -43,6 +43,7 @@ class _ZoneDetector {
     return hAngle > 0 ? ViewZone.right : ViewZone.left;
   }
 
+  // ignore: unused_element
   static Color zoneColor(ViewZone zone) => switch (zone) {
     ViewZone.front => const Color(0xFF44FF44),
     ViewZone.left => const Color(0xFF44AAFF),
@@ -66,7 +67,9 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
   final _repaint = _Notifier();
 
+  // ignore: constant_identifier_names
   static const double _R = 50.0;
+  // ignore: unused_field
   ViewZone _zone = ViewZone.front;
 
   // Step detection

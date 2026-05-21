@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vector_math/vector_math.dart';
 
 import 'package:vrlizate/vrlizate.dart';
 
@@ -101,7 +100,7 @@ void main() {
       expect(result.materials[0].metallic, closeTo(0.8, 1e-4));
       expect(result.materials[0].roughness, closeTo(0.2, 1e-4));
       expect(result.materials[0].doubleSided, isTrue);
-      expect(result.materials[0].color.red, equals(255));
+      expect((result.materials[0].color.r * 255.0).round().clamp(0, 255), equals(255));
     });
 
     test('handles empty glTF gracefully', () {

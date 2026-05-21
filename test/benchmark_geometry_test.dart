@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vector_math/vector_math.dart';
 
 import 'package:vrlizate/vrlizate.dart';
 
@@ -12,7 +11,7 @@ void main() {
       final geo = SphereGeometry(radius: 1, segments: 128);
       sw.stop();
 
-      final expectedVerts = (128 + 1) * (128 + 1);
+      const expectedVerts = (128 + 1) * (128 + 1);
       expect(geo.vertexCount, equals(expectedVerts));
       expect(geo.normals.length, equals(expectedVerts));
       expect(sw.elapsedMilliseconds, lessThan(100));

@@ -36,7 +36,7 @@ void main() {
       final body = RigidBody(node: node, mass: 1, restitution: 0.8);
       final world = PhysicsWorld()..addBody(body);
 
-      double maxH = 10;
+      const double maxH = 10;
       for (var step = 0; step < 3000; step++) {
         world.update(1 / 60);
       }

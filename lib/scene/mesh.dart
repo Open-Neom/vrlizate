@@ -66,17 +66,13 @@ class MeshNode extends Node {
     tris.sort((a, b) => b.depth.compareTo(a.depth));
 
     // Render
-    for (final tri in tris) {
-      final path = Path()
-        ..moveTo(tri.p0.dx, tri.p0.dy)
-        ..lineTo(tri.p1.dx, tri.p1.dy)
-        ..lineTo(tri.p2.dx, tri.p2.dy)
-        ..close();
-
-      final paint = material.toPaint(lightFactor: 1.0);
-      canvas.drawPath(path, paint);
-
-      if (material.wireframe) {
+    if (material.wireframe) {
+      for (final tri in tris) {
+        final path = Path()
+          ..moveTo(tri.p0.dx, tri.p0.dy)
+          ..lineTo(tri.p1.dx, tri.p1.dy)
+          ..lineTo(tri.p2.dx, tri.p2.dy)
+          ..close();
         canvas.drawPath(
           path,
           Paint()
@@ -85,6 +81,23 @@ class MeshNode extends Node {
             ..strokeWidth = 0.5,
         );
       }
+      return;
+    }
+
+    final positions = <Offset>[];
+    for (final tri in tris) {
+      positions.add(tri.p0);
+      positions.add(tri.p1);
+      positions.add(tri.p2);
+    }
+
+    if (positions.isNotEmpty) {
+      final vertices = Vertices(
+        VertexMode.triangles,
+        positions,
+      );
+      final paint = material.toPaint(lightFactor: 1.0);
+      canvas.drawVertices(vertices, BlendMode.srcOver, paint);
     }
   }
 
@@ -180,14 +193,45 @@ class LitMeshNode extends MeshNode {
 
     tris.sort((a, b) => b.depth.compareTo(a.depth));
 
-    for (final tri in tris) {
-      final path = Path()
-        ..moveTo(tri.p0.dx, tri.p0.dy)
-        ..lineTo(tri.p1.dx, tri.p1.dy)
-        ..lineTo(tri.p2.dx, tri.p2.dy)
-        ..close();
+    if (material.wireframe) {
+      for (final tri in tris) {
+        final path = Path()
+          ..moveTo(tri.p0.dx, tri.p0.dy)
+          ..lineTo(tri.p1.dx, tri.p1.dy)
+          ..lineTo(tri.p2.dx, tri.p2.dy)
+          ..close();
+        canvas.drawPath(
+          path,
+          material.toPaint(lightFactor: tri.lightFactor),
+        );
+      }
+      return;
+    }
 
-      canvas.drawPath(path, material.toPaint(lightFactor: tri.lightFactor));
+    final positions = <Offset>[];
+    final colors = <Color>[];
+
+    for (final tri in tris) {
+      positions.add(tri.p0);
+      positions.add(tri.p1);
+      positions.add(tri.p2);
+
+      final litPaint = material.toPaint(lightFactor: tri.lightFactor);
+      final litColor = litPaint.color;
+      colors.add(litColor);
+      colors.add(litColor);
+      colors.add(litColor);
+    }
+
+    if (positions.isNotEmpty) {
+      final vertices = Vertices(
+        VertexMode.triangles,
+        positions,
+        colors: colors,
+      );
+      final basePaint = Paint()
+        ..blendMode = material.blendMode;
+      canvas.drawVertices(vertices, BlendMode.srcOver, basePaint);
     }
   }
 }

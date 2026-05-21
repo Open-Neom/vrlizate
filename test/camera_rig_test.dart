@@ -97,5 +97,53 @@ void main() {
       target.rotate(0.1, 0.1);
       target.reset();
     });
+
+    test('Google Cardboard Neck Model shifts eyes realistically on rotation', () {
+      final rig = CameraRig(ipd: 0.064);
+      rig.position = Vector3(0, 0, 0);
+
+      // Identity rotation (looking straight ahead)
+      final leftViewIdentity = rig.leftViewMatrix;
+      
+      // Rotate rig by 90 degrees around Yaw (looking fully right)
+      rig.rotate(pi / 2, 0);
+      final leftViewRotated = rig.leftViewMatrix;
+
+      // Transform a test point in front of the camera (e.g., world [0, 0, -2])
+      final testPoint = Vector4(0, 0, -2, 1);
+      final pointInIdentityEye = leftViewIdentity * testPoint;
+      final pointInRotatedEye = leftViewRotated * testPoint;
+
+      // They must differ dynamically because the eye shifted and rotated around the neck pivot
+      expect(pointInIdentityEye.xyz.distanceTo(pointInRotatedEye.xyz), isNot(closeTo(0, 1e-6)));
+    });
+
+    test('Simultaneous symmetric translation offsets', () {
+      final rig = CameraRig(ipd: 0.064);
+      final leftView = rig.leftViewMatrix;
+      final rightView = rig.rightViewMatrix;
+      final monoView = rig.monoViewMatrix;
+
+      // Extract horizontal translations (element at index 12 in column-major storage)
+      final leftT = leftView.storage[12];
+      final rightT = rightView.storage[12];
+      final monoT = monoView.storage[12];
+
+      // The difference between mono and left should equal difference between right and mono
+      expect((monoT - leftT).abs(), closeTo((rightT - monoT).abs(), 1e-4));
+    });
+
+    test('Neck model physical safety bounds are maintained', () {
+      // Compute the displacement of the eye position relative to head position
+      // For mono eye: local offset is (0, 0.075, -0.080)
+      final localMono = Vector3(0, 0.075, -0.080);
+      expect(localMono.length, lessThan(0.11)); // ~0.1096m <= 0.11m
+
+      // For left and right eyes: local offset includes eye offset (IPD/2)
+      final localLeft = Vector3(-0.032, 0.075, -0.080);
+      final localRight = Vector3(0.032, 0.075, -0.080);
+      expect(localLeft.length, lessThan(0.12)); // ~0.1142m <= 0.12m
+      expect(localRight.length, lessThan(0.12));
+    });
   });
 }

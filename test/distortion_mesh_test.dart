@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:vrlizate/vrlizate.dart';
@@ -37,7 +35,7 @@ void main() {
     test('inverse distortion converges', () {
       final mesh = DistortionMesh.cardboardV1();
       // Distort a radius, then inverse distort it
-      final r = 0.5;
+      const r = 0.5;
       final distorted = r * mesh.distortionFactor(r * r);
       final inverse = mesh.inverseDistort(distorted);
 
