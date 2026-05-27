@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0 — 2026-05
+
+### Changed
+- Refactored `VRParticle` and `VRRing` classes to make `color` a non-final mutable field to enable real-time dynamic modulation for audio-reactive and visual animation effects.
+
 ## 1.1.0 — 2026-05
 
 ### Added

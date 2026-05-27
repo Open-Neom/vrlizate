@@ -25,7 +25,7 @@ abstract class VRElement {
 /// A point/particle in VR space.
 class VRParticle extends VRElement {
   final double radius;
-  final Color color;
+  Color color;
   final double glowRadius;
 
   VRParticle({
@@ -73,7 +73,7 @@ class VRParticle extends VRElement {
 /// A ring/circle in VR space (rendered as an arc at its projected position).
 class VRRing extends VRElement {
   final double ringRadius;
-  final Color color;
+  Color color;
   final double strokeWidth;
 
   VRRing({
