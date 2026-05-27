@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0 — 2026-05-27
+
+### Added
+- **OpenXR 26-Joint Skeletal Alignment & Gestures**: Standardized input layer to the Khronos OpenXR specification, supporting physical bone linkages (25 bone joints), 3D orientations, and advanced mathematical gesture calculations (`isFlatHand`, `isThumbsUp`, `isVictory`).
+- **Projected Radial Lens Distortion**: Implemented polynomial barrel distortion directly in the Normalized Device Coordinates (NDC) projection of the vertex shader pipeline, enabling cardboard VR distortion correction with zero CPU/GPU rendering overhead.
+- **Isolate-Based Background Sensor Fusion**: Decoupled complementary sensor filters (IMU gyroscope and accelerometer math) and predictive head tracking calculations from the UI thread to a dedicated background Isolate thread, avoiding frame rate drops.
+- **Volumetric Hologram Mesh Node (`HologramMeshNode`)**: Added a simulated volumetric shader employing a triple-pass shell technique (Core, body with flickering and glitch offsets, and glowing envelope) along with vertical scanline effects.
+- **Isolate-Based Background WiFi Sensing Engine (`WifiSensingSystem`)**: Added background Isolate support to process OFDM Channel State Information (CSI) subcarriers, computing multipath disturbance standard deviation to track physical trajectories and vitals (respiration rate) without optical cameras.
+- **3D Skeletal Bone Cylinder Rendering**: Renders full 3D skeletons between parent/child joints dynamically using quaternion orientation rotations.
+
 ## 1.2.0 — 2026-05
 
 ### Changed
