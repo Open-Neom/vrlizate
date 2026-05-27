@@ -17,6 +17,12 @@ class RenderPass {
   int _culledCount = 0;
   int _renderedCount = 0;
 
+  /// Whether to apply radial lens distortion correction.
+  bool enableLensDistortion = false;
+
+  /// Coefficients for the radial distortion (default is Cardboard V1 [0.441, 0.156])
+  List<double> distortionCoefficients = const [0.441, 0.156];
+
   RenderPass({required this.scene, required this.cameraRig});
 
   int get culledCount => _culledCount;
@@ -31,76 +37,89 @@ class RenderPass {
     _culledCount = 0;
     _renderedCount = 0;
 
-    final frustum = VrFrustum.fromViewProjection(viewProjection);
-    final lights = scene.lights;
+    // Set active distortion coefficients globally for this render pass
+    MeshNode.activeDistortionCoefficients = enableLensDistortion ? distortionCoefficients : null;
 
-    // Background
-    canvas.drawRect(
-      Offset.zero & viewportSize,
-      Paint()..color = scene.backgroundColor,
-    );
+    try {
+      final frustum = VrFrustum.fromViewProjection(viewProjection);
+      final lights = scene.lights;
 
-    // Setup canvas transform: NDC [-1,1] → screen pixels
-    canvas.save();
-    canvas.translate(viewportSize.width / 2, viewportSize.height / 2);
-    canvas.scale(viewportSize.width / 2, -viewportSize.height / 2);
-
-    // Collect renderable nodes
-    final opaqueNodes = <Node>[];
-    final transparentNodes = <Node>[];
-
-    scene.root.traverse((node) {
-      if (!node.visible) return;
-      if (node is! MeshNode) return;
-
-      // Frustum culling
-      final cull = frustum.testAabb(node.worldAabb);
-      if (cull == CullResult.outside) {
-        _culledCount++;
-        return;
-      }
-
-      // Inject lights for lit meshes
-      if (node is LitMeshNode) {
-        node.lights.clear();
-        node.lights.addAll(lights);
-      }
-
-      if (node.material.isTransparent) {
-        transparentNodes.add(node);
-      } else {
-        opaqueNodes.add(node);
-      }
-    });
-
-    // Render opaque first (front to back for early-z)
-    for (final node in opaqueNodes) {
-      node.onRender(canvas, viewProjection);
-      _renderedCount++;
-    }
-
-    // Render transparent (back to front)
-    transparentNodes.sort((a, b) {
-      final da = (a.worldPosition - cameraRig.position).length2;
-      final db = (b.worldPosition - cameraRig.position).length2;
-      return db.compareTo(da);
-    });
-    for (final node in transparentNodes) {
-      node.onRender(canvas, viewProjection);
-      _renderedCount++;
-    }
-
-    canvas.restore();
-
-    // Fog overlay
-    if (scene.fogDensity > 0) {
+      // Background
       canvas.drawRect(
         Offset.zero & viewportSize,
-        Paint()
-          ..color = scene.fogColor.withValues(
-            alpha: scene.fogDensity.clamp(0, 0.8),
-          ),
+        Paint()..color = scene.backgroundColor,
       );
+
+      // Setup canvas transform: NDC [-1,1] → screen pixels
+      canvas.save();
+      canvas.translate(viewportSize.width / 2, viewportSize.height / 2);
+      canvas.scale(viewportSize.width / 2, -viewportSize.height / 2);
+
+      // Collect renderable nodes
+      final opaqueNodes = <Node>[];
+      final transparentNodes = <Node>[];
+
+      scene.root.traverse((node) {
+        if (!node.visible) return;
+        if (node is! MeshNode) return;
+
+        // Frustum culling
+        final cull = frustum.testAabb(node.worldAabb);
+        if (cull == CullResult.outside) {
+          _culledCount++;
+          return;
+        }
+
+        // Inject lights for lit meshes
+        if (node is LitMeshNode) {
+          node.lights.clear();
+          node.lights.addAll(lights);
+        }
+
+        if (node.material.isTransparent) {
+          transparentNodes.add(node);
+        } else {
+          opaqueNodes.add(node);
+        }
+      });
+
+      // Render opaque first (front to back for early-z)
+      opaqueNodes.sort((a, b) {
+        final da = (a.worldPosition - cameraRig.position).length2;
+        final db = (b.worldPosition - cameraRig.position).length2;
+        return da.compareTo(db);
+      });
+      for (final node in opaqueNodes) {
+        node.onRender(canvas, viewProjection);
+        _renderedCount++;
+      }
+
+      // Render transparent (back to front)
+      transparentNodes.sort((a, b) {
+        final da = (a.worldPosition - cameraRig.position).length2;
+        final db = (b.worldPosition - cameraRig.position).length2;
+        return db.compareTo(da);
+      });
+      for (final node in transparentNodes) {
+        node.onRender(canvas, viewProjection);
+        _renderedCount++;
+      }
+
+      canvas.restore();
+
+      // Fog overlay
+      if (scene.fogDensity > 0) {
+        canvas.drawRect(
+          Offset.zero & viewportSize,
+          Paint()
+            ..color = scene.fogColor.withValues(
+              alpha: scene.fogDensity.clamp(0, 0.8),
+            ),
+        );
+      }
+    } finally {
+      // Clear global coefficients to avoid polluting other rendering passes
+      MeshNode.activeDistortionCoefficients = null;
     }
   }
 

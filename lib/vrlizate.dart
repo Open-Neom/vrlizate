@@ -34,6 +34,7 @@ export 'core/input/controller_state.dart';
 export 'core/input/gaze_pointer.dart';
 export 'core/input/hand_state.dart';
 export 'core/input/head_tracker.dart';
+export 'core/input/wifi_sensing.dart';
 
 // ============ Core — Projection ============
 export 'core/projection/stereoscopic_projection.dart';
@@ -57,6 +58,8 @@ export 'scene/pbr_material.dart';
 export 'scene/scene.dart';
 export 'scene/shadow.dart';
 export 'scene/texture.dart';
+export 'scene/hologram_node.dart';
+export 'scene/wifi_radar_node.dart';
 
 // ============ Primitives ============
 export 'scene/primitives/cube_geometry.dart';

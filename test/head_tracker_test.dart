@@ -33,6 +33,7 @@ void main() {
       tracker = HeadTracker(
         target: target,
         sensitivity: 1.0,
+        useIsolate: false,
         gyroscopeStreamOverride: gyroController.stream,
         accelerometerStreamOverride: accelController.stream,
       );

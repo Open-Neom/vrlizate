@@ -9,7 +9,7 @@ A complete 3D/VR engine written in **pure Dart** for Flutter.
 No native plugins for rendering. No platform channels. No C++ bridge. One codebase — runs on iOS, Android, Web, macOS, Windows, and Linux.
 
 ```
-5,334 lines of Dart  |  59 source files  |  2 dependencies  |  163 tests passing
+5,334 lines of Dart  |  59 source files  |  2 dependencies  |  177 tests passing
 ```
 
 ## Why VRlizate Exists
@@ -229,7 +229,7 @@ All examples live in `examples/`.
 
 ## Benchmarks
 
-163 tests. 100% pass rate. All benchmarks run on Apple Silicon under `flutter test`.
+177 tests. 100% pass rate. All benchmarks run on Apple Silicon under `flutter test`.
 
 ### Performance
 
@@ -249,6 +249,8 @@ All examples live in `examples/`.
 | **Math** | AABB intersection | 10,000 pairs | < 20ms |
 | **Material** | toPaint() | 10,000 calls | < 50ms |
 | **glTF** | Parse 100 nodes | JSON + transforms | < 50ms |
+| **Render Pipeline** | `renderMono` | 1,000 Opaque + 200 Transparent | < 50ms |
+| **Render Pipeline** | Frustum Culling | 900 out-of-view objects | < 15ms |
 
 ### Correctness
 
@@ -272,10 +274,13 @@ All examples live in `examples/`.
 | **glTF** | Invalid GLB rejected with FormatException |
 | **Material** | Opacity affects paint alpha |
 | **Material** | Wireframe produces stroke paint |
+| **Render Pipeline** | Frustum culling: exact node exclusion |
+| **Render Pipeline** | Transparent sorting: strict back-to-front |
+| **Render Pipeline** | Stereo rendering: symmetry & viewport clipping |
 
 Run all benchmarks yourself:
 ```bash
-flutter test                        # all 163 tests
+flutter test                        # all 177 tests
 flutter test test/benchmark_*.dart  # benchmarks only
 ```
 
@@ -294,7 +299,7 @@ Full benchmark details in [BENCHMARKS.md](BENCHMARKS.md).
 | Spatial UI | Built-in | - | - | External |
 | Dependencies | **2** | varies | many | N/A |
 | Cross-platform | **6** | limited | limited | PlatformView |
-| Test suite | **163** | minimal | minimal | N/A |
+| Test suite | **177** | minimal | minimal | N/A |
 
 ## Dependencies
 

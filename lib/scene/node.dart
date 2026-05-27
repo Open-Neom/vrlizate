@@ -8,7 +8,7 @@ import '../core/math/transform3d.dart';
 /// Base node in the scene graph with parent-child hierarchy.
 /// All spatial objects inherit from Node.
 class Node {
-  final String name;
+  String name;
   final Transform3D transform;
   Node? _parent;
   final List<Node> _children = [];

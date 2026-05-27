@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:flutter/widgets.dart' show CustomPainter;
+import 'package:flutter/widgets.dart' show CustomPainter, ChangeNotifier;
 
 import '../../scene/scene.dart';
 import '../camera/camera_rig.dart';
@@ -18,7 +18,7 @@ import '../rendering/render_pass.dart';
 /// // In your widget:
 /// CustomPaint(painter: engine.stereoPainter)
 /// ```
-class VREngine {
+class VREngine extends ChangeNotifier {
   final Scene scene;
   final CameraRig cameraRig;
   late final RenderPass renderPass;
@@ -93,6 +93,9 @@ class VREngine {
 
     // Custom update callback
     onUpdate?.call(dt);
+
+    // Notify the CustomPainter to redraw!
+    notifyListeners();
   }
 
   /// Creates a CustomPainter that renders stereoscopically.
@@ -101,9 +104,11 @@ class VREngine {
   /// Creates a CustomPainter that renders monoscopically.
   VREnginePainter get monoPainter => VREnginePainter._(this, stereo: false);
 
+  @override
   void dispose() {
     stop();
     headTracker?.dispose();
+    super.dispose();
   }
 
   // Bridge to the old VRCamera API for HeadTracker compatibility
@@ -115,7 +120,9 @@ class VREnginePainter extends CustomPainter {
   final VREngine _engine;
   final bool _stereo;
 
-  VREnginePainter._(this._engine, {required bool stereo}) : _stereo = stereo;
+  VREnginePainter._(this._engine, {required bool stereo})
+      : _stereo = stereo,
+        super(repaint: _engine);
 
   @override
   void paint(Canvas canvas, Size size) {

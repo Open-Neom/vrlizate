@@ -87,6 +87,58 @@ void main() {
         closeTo(HandJoint.littleTip.index.toDouble(), 1e-6),
       );
     });
+
+    test('flat hand detected when all tips are far from palm', () {
+      final hand = HandState(hand: ControllerHand.left, tracked: true);
+      hand.joints[HandJoint.palm] = Vector3(0, 0, 0);
+      hand.joints[HandJoint.thumbTip] = Vector3(0.08, 0, 0);
+      hand.joints[HandJoint.indexTip] = Vector3(0.08, 0.08, 0);
+      hand.joints[HandJoint.middleTip] = Vector3(0, 0.09, 0);
+      hand.joints[HandJoint.ringTip] = Vector3(-0.08, 0.08, 0);
+      hand.joints[HandJoint.littleTip] = Vector3(-0.08, 0, 0);
+
+      expect(hand.isFlatHand, isTrue);
+    });
+
+    test('thumbs up detected when thumb extended and others curled', () {
+      final hand = HandState(hand: ControllerHand.left, tracked: true);
+      hand.joints[HandJoint.palm] = Vector3(0, 0, 0);
+      hand.joints[HandJoint.thumbTip] = Vector3(0.06, 0.06, 0); // Extended!
+      hand.joints[HandJoint.indexTip] = Vector3(0.03, 0, 0);   // Curled
+      hand.joints[HandJoint.middleTip] = Vector3(0, 0.03, 0);  // Curled
+      hand.joints[HandJoint.ringTip] = Vector3(-0.03, 0, 0);   // Curled
+      hand.joints[HandJoint.littleTip] = Vector3(0, -0.03, 0); // Curled
+
+      expect(hand.isThumbsUp, isTrue);
+    });
+
+    test('victory detected when index and middle extended and others curled', () {
+      final hand = HandState(hand: ControllerHand.left, tracked: true);
+      hand.joints[HandJoint.palm] = Vector3(0, 0, 0);
+      hand.joints[HandJoint.indexTip] = Vector3(0.08, 0.08, 0);  // Extended!
+      hand.joints[HandJoint.middleTip] = Vector3(0, 0.09, 0);     // Extended!
+      hand.joints[HandJoint.thumbTip] = Vector3(0.03, 0, 0);      // Curled
+      hand.joints[HandJoint.ringTip] = Vector3(-0.03, 0, 0);      // Curled
+      hand.joints[HandJoint.littleTip] = Vector3(0, -0.03, 0);    // Curled
+
+      expect(hand.isVictory, isTrue);
+      expect(hand.isFlatHand, isFalse);
+    });
+
+    test('orientations can be stored and retrieved', () {
+      final hand = HandState(hand: ControllerHand.left, tracked: true);
+      final q = Quaternion.axisAngle(Vector3(0, 1, 0), 1.0);
+      hand.orientations[HandJoint.wrist] = q;
+
+      expect(hand.jointOrientation(HandJoint.wrist), equals(q));
+      expect(hand.jointOrientation(HandJoint.palm), isNull);
+    });
+
+    test('boneConnections list is populated with 25 connections', () {
+      expect(HandState.boneConnections.length, equals(25));
+      expect(HandState.boneConnections.first.parent, equals(HandJoint.wrist));
+      expect(HandState.boneConnections.first.child, equals(HandJoint.palm));
+    });
   });
 
   group('ControllerState', () {

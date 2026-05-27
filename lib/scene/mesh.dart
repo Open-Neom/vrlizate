@@ -13,6 +13,9 @@ class MeshNode extends Node {
   final Geometry geometry;
   final VRMaterial material;
 
+  /// Global active lens distortion coefficients for the current rendering pass.
+  static List<double>? activeDistortionCoefficients;
+
   MeshNode({super.name = 'mesh', required this.geometry, VRMaterial? material})
     : material = material ?? VRMaterial();
 
@@ -109,9 +112,23 @@ class MeshNode extends Node {
         mvp.storage[15];
     if (w <= 0.001) return null;
 
-    final ndcX = clip.x / w;
-    final ndcY = clip.y / w;
+    double ndcX = clip.x / w;
+    double ndcY = clip.y / w;
     final ndcZ = clip.z / w;
+
+    // Apply radial lens distortion if active
+    final coeffs = activeDistortionCoefficients;
+    if (coeffs != null && coeffs.isNotEmpty) {
+      final rSquared = ndcX * ndcX + ndcY * ndcY;
+      double rFactor = 1.0;
+      double factor = 1.0;
+      for (final k in coeffs) {
+        rFactor *= rSquared;
+        factor += k * rFactor;
+      }
+      ndcX *= factor;
+      ndcY *= factor;
+    }
 
     // NDC to screen will be done by the renderer setting up the canvas transform
     return _ProjectedVertex(offset: Offset(ndcX, ndcY), depth: ndcZ);
@@ -205,13 +222,22 @@ class LitMeshNode extends MeshNode {
     final positions = <Offset>[];
     final colors = <Color>[];
 
+    final baseAlpha = (material.opacity * 255).round().clamp(0, 255);
+    final baseR = (material.color.r * 255.0).round().clamp(0, 255);
+    final baseG = (material.color.g * 255.0).round().clamp(0, 255);
+    final baseB = (material.color.b * 255.0).round().clamp(0, 255);
+
     for (final tri in tris) {
       positions.add(tri.p0);
       positions.add(tri.p1);
       positions.add(tri.p2);
 
-      final litPaint = material.toPaint(lightFactor: tri.lightFactor);
-      final litColor = litPaint.color;
+      final factor = tri.lightFactor;
+      final r = (baseR * factor).round().clamp(0, 255);
+      final g = (baseG * factor).round().clamp(0, 255);
+      final b = (baseB * factor).round().clamp(0, 255);
+
+      final litColor = Color.fromARGB(baseAlpha, r, g, b);
       colors.add(litColor);
       colors.add(litColor);
       colors.add(litColor);
