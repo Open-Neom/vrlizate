@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:vector_math/vector_math.dart';
+import '../interaction/pointable.dart';
 
 import '../core/math/aabb.dart';
 import '../core/math/transform3d.dart';
@@ -13,6 +14,7 @@ class Node {
   Node? _parent;
   final List<Node> _children = [];
   bool visible = true;
+  Pointable? pointable;
 
   Matrix4? _worldMatrix;
   bool _worldDirty = true;

@@ -10,7 +10,6 @@ import 'panel.dart';
 /// A clickable 3D button in VR space.
 class SpatialButton extends Node {
   final SpatialPanel _panel;
-  late final Pointable pointable;
 
   String label;
   Color labelColor;

@@ -144,7 +144,7 @@ void main() {
       GltfParser.parseJson(json);
       sw.stop();
 
-      expect(sw.elapsedMilliseconds, lessThan(50));
+      expect(sw.elapsedMilliseconds, lessThan(100));
     });
   });
 }

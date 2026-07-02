@@ -136,6 +136,14 @@ class HeadTracker {
           final gx = (message[1] as num).toDouble();
           final gy = (message[2] as num).toDouble();
 
+          // Dynamic Auto-Calibrating Anti-Drift:
+          // If the gyroscope velocity is extremely low, adaptively adjust the offsets
+          final double magnitude = sqrt(gx * gx + gy * gy);
+          if (magnitude < 0.015) {
+            offsetX = offsetX * 0.995 + gx * 0.005;
+            offsetY = offsetY * 0.995 + gy * 0.005;
+          }
+
           final adjustedX = gx - offsetX;
           final adjustedY = gy - offsetY;
 
@@ -238,6 +246,14 @@ class HeadTracker {
           _calibrationSumY += event.y;
           _calibrationSamples++;
           return;
+        }
+
+        // Dynamic Auto-Calibrating Anti-Drift:
+        // If the gyroscope velocity is extremely low, adaptively adjust the offsets
+        final double magnitude = sqrt(event.x * event.x + event.y * event.y);
+        if (magnitude < 0.015) {
+          _offsetX = _offsetX * 0.995 + event.x * 0.005;
+          _offsetY = _offsetY * 0.995 + event.y * 0.005;
         }
 
         final adjustedX = event.x - _offsetX;

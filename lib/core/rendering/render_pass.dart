@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:vector_math/vector_math.dart';
 
+import '../../effects/distortion_mesh.dart';
 import '../../scene/mesh.dart';
 import '../../scene/node.dart';
 import '../../scene/scene.dart';
@@ -23,7 +24,33 @@ class RenderPass {
   /// Coefficients for the radial distortion (default is Cardboard V1 [0.441, 0.156])
   List<double> distortionCoefficients = const [0.441, 0.156];
 
+  /// FSR (FidelityFX Super Resolution) simulation: scaling ratio of offline viewport
+  double fsrScale = 1.0;
+
+  /// Whether to apply RGB color splitting dispersion correction in distortion
+  bool enableChromaticAberration = false;
+
+  /// Transformation matrices for Asynchronous Time Warp (ATW)
+  Matrix4? leftAtwMatrix;
+  Matrix4? rightAtwMatrix;
+
+  Image? _lastLeftImage;
+  Image? _lastRightImage;
+
+  /// Trigger to skip rendering and warp last frame's cached images directly
+  bool useATWFallback = false;
+
+  late final DistortionMesh _leftDistortionMesh = DistortionMesh.cardboardV2();
+  late final DistortionMesh _rightDistortionMesh = DistortionMesh.cardboardV2();
+
   RenderPass({required this.scene, required this.cameraRig});
+
+  void dispose() {
+    _lastLeftImage?.dispose();
+    _lastLeftImage = null;
+    _lastRightImage?.dispose();
+    _lastRightImage = null;
+  }
 
   int get culledCount => _culledCount;
   int get renderedCount => _renderedCount;
@@ -123,32 +150,77 @@ class RenderPass {
     }
   }
 
+  Image _renderEyeToImage(Size viewportSize, Matrix4 viewProjection) {
+    final recorder = PictureRecorder();
+    final offlineCanvas = Canvas(recorder);
+
+    final double fsrW = (viewportSize.width * fsrScale).roundToDouble();
+    final double fsrH = (viewportSize.height * fsrScale).roundToDouble();
+    final fsrSize = Size(fsrW, fsrH);
+
+    render(offlineCanvas, fsrSize, viewProjection: viewProjection);
+
+    final picture = recorder.endRecording();
+    return picture.toImageSync(fsrW.toInt(), fsrH.toInt());
+  }
+
   /// Renders stereo: left eye then right eye, side by side.
+  /// Renders offline, then applies FFR/FSR scaling, chromatic aberration, and ATW warping.
+  /// Reuses cached image buffers if useATWFallback is true.
   void renderStereo(Canvas canvas, Size fullSize) {
     final halfWidth = fullSize.width / 2;
     final eyeSize = Size(halfWidth, fullSize.height);
     final aspect = halfWidth / fullSize.height;
 
-    // Left eye
+    final Image leftImg;
+    final Image rightImg;
+
+    if (useATWFallback && _lastLeftImage != null && _lastRightImage != null) {
+      // Re-use last frame's successfully rendered images
+      leftImg = _lastLeftImage!;
+      rightImg = _lastRightImage!;
+    } else {
+      // Render new images and update cache
+      final newLeft = _renderEyeToImage(eyeSize, cameraRig.leftViewProjection(aspect));
+      final newRight = _renderEyeToImage(eyeSize, cameraRig.rightViewProjection(aspect));
+
+      _lastLeftImage?.dispose();
+      _lastRightImage?.dispose();
+
+      _lastLeftImage = newLeft;
+      _lastRightImage = newRight;
+
+      leftImg = newLeft;
+      rightImg = newRight;
+    }
+
+    // Left eye (offline warp)
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(0, 0, halfWidth, fullSize.height));
-    render(
+    _leftDistortionMesh.drawDistortedImage(
       canvas,
+      leftImg,
       eyeSize,
-      viewProjection: cameraRig.leftViewProjection(aspect),
+      atwTransform: leftAtwMatrix,
+      enableChromaticAberration: enableChromaticAberration,
     );
     canvas.restore();
 
-    // Right eye
+    // Right eye (offline warp)
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(halfWidth, 0, halfWidth, fullSize.height));
     canvas.translate(halfWidth, 0);
-    render(
+    _rightDistortionMesh.drawDistortedImage(
       canvas,
+      rightImg,
       eyeSize,
-      viewProjection: cameraRig.rightViewProjection(aspect),
+      atwTransform: rightAtwMatrix,
+      enableChromaticAberration: enableChromaticAberration,
     );
     canvas.restore();
+
+    // Clear fallback flag after frame completion
+    useATWFallback = false;
 
     // Divider
     canvas.drawRect(

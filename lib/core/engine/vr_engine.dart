@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/widgets.dart' show CustomPainter, ChangeNotifier;
+import 'package:vector_math/vector_math.dart';
 
 import '../../scene/scene.dart';
 import '../camera/camera_rig.dart';
 import '../input/head_tracker.dart';
+import '../input/gaze_pointer.dart';
 import '../rendering/render_pass.dart';
+import '../../interaction/raycast.dart';
 
 /// Main VR engine. Manages the game loop, scene, camera, and rendering.
 ///
@@ -23,6 +26,9 @@ class VREngine extends ChangeNotifier {
   final CameraRig cameraRig;
   late final RenderPass renderPass;
   HeadTracker? headTracker;
+  GazePointer? gazePointer;
+  final Raycaster _raycaster = Raycaster();
+  Quaternion? _lastCameraRotation;
 
   Timer? _timer;
   DateTime _lastTime = DateTime.now();
@@ -78,6 +84,26 @@ class VREngine extends ChangeNotifier {
     headTracker = null;
   }
 
+  /// Enables gaze-based interaction pointer (look-to-select).
+  void enableGazePointer({double dwellDuration = 2.0}) {
+    gazePointer = GazePointer(cameraRig: cameraRig, dwellDuration: dwellDuration);
+  }
+
+  /// Disables the gaze pointer.
+  void disableGazePointer() {
+    gazePointer = null;
+  }
+
+  /// Exposes screen tap event (e.g. Cardboard viewer button click)
+  /// and propagates it to the gazed interactive target.
+  void handleTap() {
+    if (gazePointer != null) {
+      final ray = gazePointer!.ray;
+      final hit = _raycaster.castNearest(ray, scene.root);
+      gazePointer!.triggerTap(hit);
+    }
+  }
+
   void _tick() {
     final now = DateTime.now();
     final dt = now.difference(_lastTime).inMicroseconds / 1000000.0;
@@ -88,8 +114,39 @@ class VREngine extends ChangeNotifier {
     _frameTime = dt * 1000;
     _fps = _fps * 0.9 + (1.0 / dt) * 0.1;
 
+    // Asynchronous Time Warp (ATW) Check:
+    // If the frame time is above 18ms (frame drop), calculate rotation delta and set ATW matrices
+    final currentRotation = cameraRig.rotation;
+    if (_frameTime > 18.0 && _lastCameraRotation != null) {
+      final delta = currentRotation * _lastCameraRotation!.inverted();
+      final atwMatrix = Matrix4.compose(Vector3.zero(), delta, Vector3.all(1.0));
+      renderPass.leftAtwMatrix = atwMatrix;
+      renderPass.rightAtwMatrix = atwMatrix;
+      renderPass.useATWFallback = true;
+    } else {
+      renderPass.leftAtwMatrix = null;
+      renderPass.rightAtwMatrix = null;
+      renderPass.useATWFallback = false;
+    }
+    _lastCameraRotation = currentRotation.clone();
+
     // Update scene
     scene.update(dt);
+
+    // Update gaze pointer and interactables if active
+    if (gazePointer != null) {
+      final ray = gazePointer!.ray;
+      final hit = _raycaster.castNearest(ray, scene.root);
+      gazePointer!.update(dt, hit?.node.name);
+
+      // Traversal to update Pointable hover states
+      scene.root.traverse((node) {
+        if (node.pointable != null) {
+          final isGazingThisNode = hit != null && hit.node == node;
+          node.pointable!.updateHover(isGazingThisNode);
+        }
+      });
+    }
 
     // Custom update callback
     onUpdate?.call(dt);

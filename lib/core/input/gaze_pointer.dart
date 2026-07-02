@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:vector_math/vector_math.dart';
 
 import '../camera/camera_rig.dart';
+import '../../interaction/raycast.dart';
 
 /// Gaze-based pointer for VR interaction (look to select).
 /// Fires a ray from the camera center forward direction.
@@ -23,6 +24,9 @@ class GazePointer {
   /// Callback when a target is selected via dwell.
   void Function(String nodeId)? onDwellSelect;
 
+  /// Callback when a target is tapped/clicked.
+  void Function(String nodeId)? onTap;
+
   /// Callback when gaze enters a target.
   void Function(String nodeId)? onGazeEnter;
 
@@ -33,9 +37,26 @@ class GazePointer {
     required this.cameraRig,
     this.dwellDuration = 2.0,
     this.onDwellSelect,
+    this.onTap,
     this.onGazeEnter,
     this.onGazeExit,
   });
+
+  /// Manually trigger a tap/click event on the currently gazed target.
+  void triggerTap(RaycastHit? hit) {
+    if (_gazeTargetId != null) {
+      onTap?.call(_gazeTargetId!);
+      onDwellSelect?.call(_gazeTargetId!);
+      
+      // Trigger Pointable component if registered on the node
+      if (hit != null && hit.node.pointable != null) {
+        hit.node.pointable!.press(hit);
+        Future.delayed(const Duration(milliseconds: 100), () {
+          hit.node.pointable?.release();
+        });
+      }
+    }
+  }
 
   /// The ray from camera center in forward direction.
   Ray get ray =>

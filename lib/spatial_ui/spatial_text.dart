@@ -36,21 +36,29 @@ class SpatialText extends Billboard {
     final depth = center4.w;
     final scaledFontSize = fontSize / depth;
 
+    // SOTA Vector-Based Sharp Rendering (SDF Simulation):
+    // Instead of rendering small fonts (which pixelates under lens magnifying glass),
+    // we render at a high-resolution base (120px) and scale down the Canvas transform.
+    // This forces the rasterizer to construct ultra-high density vector font contours.
+    const double baseHighResSize = 120.0;
+    final double scaleRatio = scaledFontSize / baseHighResSize;
+
     canvas.save();
     canvas.translate(ndcX, ndcY);
+    canvas.scale(scaleRatio, scaleRatio);
 
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
           color: color,
-          fontSize: scaledFontSize,
+          fontSize: baseHighResSize,
           fontWeight: fontWeight,
         ),
       ),
       textDirection: TextDirection.ltr,
       textAlign: textAlign,
-    )..layout(maxWidth: 800 / depth);
+    )..layout(maxWidth: (800 / depth) / scaleRatio);
 
     textPainter.paint(
       canvas,

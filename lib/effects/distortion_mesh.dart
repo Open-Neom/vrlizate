@@ -1,4 +1,6 @@
 import 'dart:ui';
+import 'dart:typed_data';
+import 'package:vector_math/vector_math.dart' show Matrix4;
 
 /// Polynomial radial distortion for VR lens correction.
 /// Based on Google Cardboard SDK distortion algorithm.
@@ -21,6 +23,7 @@ class DistortionMesh {
   /// Pre-computed distorted UV coordinates.
   late final List<Offset> distortedPoints;
   late final List<Offset> originalPoints;
+  late final List<int> indices;
 
   DistortionMesh({
     this.coefficients = const [0.441, 0.156],
@@ -51,6 +54,7 @@ class DistortionMesh {
   void _computeMesh() {
     originalPoints = [];
     distortedPoints = [];
+    indices = [];
 
     for (var y = 0; y <= resolution; y++) {
       for (var x = 0; x <= resolution; x++) {
@@ -60,6 +64,26 @@ class DistortionMesh {
 
         originalPoints.add(Offset(nx, ny));
         distortedPoints.add(distort(nx, ny));
+      }
+    }
+
+    // Pre-compute indices for drawing triangles
+    for (var y = 0; y < resolution; y++) {
+      for (var x = 0; x < resolution; x++) {
+        final i00 = y * (resolution + 1) + x;
+        final i10 = i00 + 1;
+        final i01 = i00 + (resolution + 1);
+        final i11 = i01 + 1;
+
+        // Triangle 1
+        indices.add(i00);
+        indices.add(i10);
+        indices.add(i11);
+
+        // Triangle 2
+        indices.add(i00);
+        indices.add(i11);
+        indices.add(i01);
       }
     }
   }
@@ -106,8 +130,119 @@ class DistortionMesh {
     return r1;
   }
 
-  /// Draws the distortion mesh on a canvas, warping the source viewport.
-  /// Call this AFTER rendering the scene to apply lens correction.
+  /// Warps a rendered offline Image onto the target canvas using the pre-computed distortion mesh.
+  /// Supports [atwTransform] matrix for Asynchronous Time Warp and [enableChromaticAberration]
+  /// for correcting lens chromatic dispersion via multi-pass RGB blend.
+  void drawDistortedImage(
+    Canvas canvas,
+    Image image,
+    Size viewportSize, {
+    Matrix4? atwTransform,
+    bool enableChromaticAberration = false,
+  }) {
+    final w = viewportSize.width;
+    final h = viewportSize.height;
+
+    final imgW = image.width.toDouble();
+    final imgH = image.height.toDouble();
+
+    // Map distorted points [-1, 1] to output viewport coordinates [0, w/h]
+    final positions = distortedPoints.map((p) => _toScreen(p, w, h)).toList();
+
+    final shaderMatrix = atwTransform ?? Matrix4.identity();
+    final shader = ImageShader(
+      image,
+      TileMode.clamp,
+      TileMode.clamp,
+      Float64List.fromList(shaderMatrix.storage),
+    );
+
+    if (enableChromaticAberration) {
+      // Map Green (neutral), Red (expanded 1.008), and Blue (contracted 0.992) texture coords
+      final greenCoords = originalPoints.map((p) => _toScreen(p, imgW, imgH)).toList();
+
+      final redCoords = originalPoints.map((p) {
+        final shifted = Offset(p.dx * 1.008, p.dy * 1.008);
+        return _toScreen(shifted, imgW, imgH);
+      }).toList();
+
+      final blueCoords = originalPoints.map((p) {
+        final shifted = Offset(p.dx * 0.992, p.dy * 0.992);
+        return _toScreen(shifted, imgW, imgH);
+      }).toList();
+
+      // Draw Red channel
+      final redVertices = Vertices(
+        VertexMode.triangles,
+        positions,
+        textureCoordinates: redCoords,
+        indices: indices,
+      );
+      final redPaint = Paint()
+        ..shader = shader
+        ..colorFilter = const ColorFilter.matrix([
+          1, 0, 0, 0, 0,
+          0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0,
+          0, 0, 0, 1, 0,
+        ]);
+      canvas.drawVertices(redVertices, BlendMode.srcOver, redPaint);
+
+      // Draw Green channel (BlendMode.plus)
+      final greenVertices = Vertices(
+        VertexMode.triangles,
+        positions,
+        textureCoordinates: greenCoords,
+        indices: indices,
+      );
+      final greenPaint = Paint()
+        ..shader = shader
+        ..blendMode = BlendMode.plus
+        ..colorFilter = const ColorFilter.matrix([
+          0, 0, 0, 0, 0,
+          0, 1, 0, 0, 0,
+          0, 0, 0, 0, 0,
+          0, 0, 0, 1, 0,
+        ]);
+      canvas.drawVertices(greenVertices, BlendMode.srcOver, greenPaint);
+
+      // Draw Blue channel (BlendMode.plus)
+      final blueVertices = Vertices(
+        VertexMode.triangles,
+        positions,
+        textureCoordinates: blueCoords,
+        indices: indices,
+      );
+      final bluePaint = Paint()
+        ..shader = shader
+        ..blendMode = BlendMode.plus
+        ..colorFilter = const ColorFilter.matrix([
+          0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0,
+          0, 0, 1, 0, 0,
+          0, 0, 0, 1, 0,
+        ]);
+      canvas.drawVertices(blueVertices, BlendMode.srcOver, bluePaint);
+    } else {
+      // Standard single-pass render without aberration correction
+      final textureCoords = originalPoints.map((p) => _toScreen(p, imgW, imgH)).toList();
+
+      final vertices = Vertices(
+        VertexMode.triangles,
+        positions,
+        textureCoordinates: textureCoords,
+        indices: indices,
+      );
+
+      canvas.drawVertices(
+        vertices,
+        BlendMode.srcOver,
+        Paint()..shader = shader,
+      );
+    }
+  }
+
+  /// Draws the distortion mesh on a canvas as a wireframe grid (for debug).
   void applyToCanvas(
     Canvas canvas,
     Size viewportSize, {
@@ -116,7 +251,7 @@ class DistortionMesh {
     final w = viewportSize.width;
     final h = viewportSize.height;
 
-    // Draw the warped mesh as triangle strips
+    // Draw the warped mesh as wireframe
     for (var y = 0; y < resolution; y++) {
       for (var x = 0; x < resolution; x++) {
         final i00 = y * (resolution + 1) + x;
@@ -129,7 +264,6 @@ class DistortionMesh {
         final dst01 = _toScreen(distortedPoints[i01], w, h);
         final dst11 = _toScreen(distortedPoints[i11], w, h);
 
-        // Check if distorted point is within viewport
         if (_isOutOfBounds(dst00, w, h) &&
             _isOutOfBounds(dst10, w, h) &&
             _isOutOfBounds(dst01, w, h) &&
@@ -137,7 +271,6 @@ class DistortionMesh {
           continue;
         }
 
-        // Draw the warped quad as wireframe (for debug) or filled mesh
         final path = Path()
           ..moveTo(dst00.dx, dst00.dy)
           ..lineTo(dst10.dx, dst10.dy)
@@ -145,8 +278,6 @@ class DistortionMesh {
           ..lineTo(dst01.dx, dst01.dy)
           ..close();
 
-        // In a real GPU pipeline, this would be a textured mesh.
-        // On Canvas, we show the distortion grid for visualization.
         canvas.drawPath(
           path,
           Paint()
