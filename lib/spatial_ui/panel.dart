@@ -48,7 +48,7 @@ class SpatialPanel extends Billboard {
 
     // Approximate screen-space size based on depth
     final depth = center4.w;
-    final scale = 200 / depth; // Pixels per world unit at this depth
+    final scale = 1.0 / depth; // World units to NDC at this depth
     final screenW = panelWidth * scale;
     final screenH = panelHeight * scale;
 
@@ -66,7 +66,7 @@ class SpatialPanel extends Billboard {
 
     final rrect = RRect.fromRectAndRadius(
       rect,
-      Radius.circular(cornerRadius / depth),
+      Radius.circular(cornerRadius / (depth * 400.0)),
     );
 
     // Background
@@ -81,14 +81,17 @@ class SpatialPanel extends Billboard {
       Paint()
         ..color = borderColor.withValues(alpha: opacity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = borderWidth / depth,
+        ..strokeWidth = borderWidth / (depth * 400.0),
     );
 
     // Content
     if (onRenderContent != null) {
       canvas.clipRRect(rrect);
       canvas.translate(-screenW / 2, -screenH / 2);
-      onRenderContent!(canvas, Size(screenW, screenH));
+      canvas.save();
+      canvas.scale(1.0 / 400.0, 1.0 / 400.0);
+      onRenderContent!(canvas, Size(screenW * 400.0, screenH * 400.0));
+      canvas.restore();
     }
 
     canvas.restore();

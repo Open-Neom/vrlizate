@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.0] - 2026-07-09
+- Refactor camera rig, spatial panel widgets, and geometry scenes.
+
+
 ## 1.4.0 — 2026-07-02
 
 ### Added

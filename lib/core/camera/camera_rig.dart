@@ -120,4 +120,28 @@ class CameraRig implements RotationTarget {
   void reset() {
     headTransform.reset();
   }
+
+  /// Generates a face-tracked holographic projection matrix.
+  /// [eyePosRelative] represents the user's tracked eye position relative to the screen center (in meters).
+  /// [screenWidth] and [screenHeight] represent the physical screen size of the phone.
+  Matrix4 faceTrackedProjectionMatrix({
+    required Vector3 eyePosRelative,
+    double screenWidth = 0.15,
+    double screenHeight = 0.08,
+  }) {
+    final x = eyePosRelative.x;
+    final y = eyePosRelative.y;
+    final z = eyePosRelative.z.clamp(0.1, 10.0); // Prevent divide by zero
+
+    final w2 = screenWidth / 2;
+    final h2 = screenHeight / 2;
+
+    // Off-axis frustum shift calculated based on eye position
+    final left = (-w2 - x) * near / z;
+    final right = (w2 - x) * near / z;
+    final bottom = (-h2 - y) * near / z;
+    final top = (h2 - y) * near / z;
+
+    return makeFrustumMatrix(left, right, bottom, top, near, far);
+  }
 }

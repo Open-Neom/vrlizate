@@ -8,6 +8,8 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vector_math/vector_math.dart' hide Colors;
 import 'package:vrlizate/vrlizate.dart';
 
+import 'demos.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
@@ -16,6 +18,14 @@ void main() {
   ]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: _App()));
+}
+
+enum DemoType {
+  grid,
+  physics,
+  space,
+  cinema,
+  radar,
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -27,31 +37,17 @@ class _ZoneDetector {
   /// Computes which zone the camera is looking toward.
   /// Uses dot product of forward vector vs world directions.
   static ViewZone detect(Vector3 forward) {
-    // Horizontal angle from -Z (default front)
     final hAngle = atan2(forward.x, -forward.z) * 180 / pi; // -180..180
-    // Vertical angle
     final vAngle = asin(forward.y.clamp(-1.0, 1.0)) * 180 / pi; // -90..90
 
-    // Vertical zones first (>40° = up/down per Meta research)
     if (vAngle > 40) return ViewZone.up;
     if (vAngle < -35) return ViewZone.down;
 
-    // Horizontal zones (±55° front, ±55-135 sides, rest behind)
     final absH = hAngle.abs();
     if (absH < 55) return ViewZone.front;
     if (absH > 135) return ViewZone.behind;
     return hAngle > 0 ? ViewZone.right : ViewZone.left;
   }
-
-  // ignore: unused_element
-  static Color zoneColor(ViewZone zone) => switch (zone) {
-    ViewZone.front => const Color(0xFF44FF44),
-    ViewZone.left => const Color(0xFF44AAFF),
-    ViewZone.right => const Color(0xFFFF44AA),
-    ViewZone.up => const Color(0xFFFFDD44),
-    ViewZone.down => const Color(0xFFAA44FF),
-    ViewZone.behind => const Color(0xFFFF4444),
-  };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -67,10 +63,10 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
   final _repaint = _Notifier();
 
-  // ignore: constant_identifier_names
-  static const double _R = 50.0;
-  // ignore: unused_field
-  ViewZone _zone = ViewZone.front;
+  // Active Demo management
+  late VRDemo _activeDemo;
+  DemoType _currentDemoType = DemoType.grid;
+  SpatialText? _statsLabel;
 
   // Step detection
   StreamSubscription<AccelerometerEvent>? _accelSub;
@@ -84,9 +80,12 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
     engine = VREngine();
     engine.cameraRig.position = Vector3(0, 0, 0);
     engine.cameraRig.lookAt(Vector3(0, 0, -1));
-    engine.cameraRig.far = 120;
+    engine.cameraRig.far = 150;
 
-    _build();
+    // Load first demo (original grid)
+    _activeDemo = GridDemo(engine);
+    _activeDemo.init();
+    _buildDashboard();
 
     _accelSub = accelerometerEventStream(
       samplingPeriod: const Duration(milliseconds: 20),
@@ -94,280 +93,199 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
 
     engine.onUpdate = _animate;
     engine.enableHeadTracking(sensitivity: 0.025);
+    engine.enableGazePointer(dwellDuration: 1.5);
     engine.start();
+
     _ticker = createTicker((_) => _repaint.notify())..start();
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // Scene: ~35 nodes total for maximum performance
-  // ═══════════════════════════════════════════════════════════════
+  void _switchDemo(DemoType type) {
+    _activeDemo.dispose();
+    engine.scene.clear();
 
-  void _build() {
-    // ─── EQUATOR — bright gold ring at y=0 ───
-    _ring('eq', _R, 0, 0.2, const Color(0xFFFFDD00), const Color(0xFFBB9900));
-
-    // ─── LATITUDE RINGS — proportional radius ───
-    // ±30° (Tropics area) — medium rings
-    _ring(
-      'l30',
-      _R * 0.866,
-      _R * 0.5,
-      0.08,
-      const Color(0xFF00CCFF),
-      const Color(0xFF0077AA),
-    );
-    _ring(
-      'l-30',
-      _R * 0.866,
-      -_R * 0.5,
-      0.08,
-      const Color(0xFF00CCFF),
-      const Color(0xFF0077AA),
-    );
-    // ±60° — smaller rings (clearly smaller than equator)
-    _ring(
-      'l60',
-      _R * 0.5,
-      _R * 0.866,
-      0.06,
-      const Color(0xFF0088DD),
-      const Color(0xFF004477),
-    );
-    _ring(
-      'l-60',
-      _R * 0.5,
-      -_R * 0.866,
-      0.06,
-      const Color(0xFF0088DD),
-      const Color(0xFF004477),
-    );
-    // ±80° — small polar rings
-    _ring(
-      'l80',
-      _R * 0.174,
-      _R * 0.985,
-      0.04,
-      const Color(0xFF6666CC),
-      const Color(0xFF333366),
-    );
-    _ring(
-      'l-80',
-      _R * 0.174,
-      -_R * 0.985,
-      0.04,
-      const Color(0xFF6666CC),
-      const Color(0xFF333366),
-    );
-
-    // ─── MERIDIANS — 6 great circles (every 30°), 10 segs each ───
-    for (var j = 0; j < 6; j++) {
-      final lon = j * pi / 6;
-      final prime = j == 0;
-      final c = prime ? const Color(0xFF55CCFF) : const Color(0xFF2288CC);
-      final e = prime ? const Color(0xFF337799) : const Color(0xFF114466);
-      final t = prime ? 0.18 : 0.08;
-
-      for (var i = 0; i < 10; i++) {
-        final a1 = -pi / 2 + i * pi / 10;
-        final a2 = -pi / 2 + (i + 1) * pi / 10;
-        _meridianSeg('m${j}_$i', lon, a1, a2, c, e, t);
-      }
+    _currentDemoType = type;
+    switch (type) {
+      case DemoType.grid:
+        _activeDemo = GridDemo(engine);
+        break;
+      case DemoType.physics:
+        _activeDemo = PhysicsPlaygroundDemo(engine);
+        break;
+      case DemoType.space:
+        _activeDemo = SpaceFlightDemo(engine);
+        break;
+      case DemoType.cinema:
+        _activeDemo = VRCinemaDemo(engine);
+        break;
+      case DemoType.radar:
+        _activeDemo = WifiRadarDemo(engine);
+        break;
     }
 
-    // ─── AXES — thin beams ───
-    _beam(
-      'aX',
-      const Color(0xFFFF4444),
-      const Color(0xFFAA2222),
-      Vector3(_R * 2, 0.15, 0.15),
-    );
-    _beam(
-      'aY',
-      const Color(0xFFCCCCFF),
-      const Color(0xFF7777AA),
-      Vector3(0.15, _R * 2, 0.15),
-    );
-    _beam(
-      'aZ',
-      const Color(0xFF4466FF),
-      const Color(0xFF2233AA),
-      Vector3(0.15, 0.15, _R * 2),
-    );
-
-    // ─── CARDINAL SPHERES — glow markers ───
-    _card('N', const Color(0xFFFF3333), Vector3(0, 0, -_R), 2.5);
-    _card('S', const Color(0xFFFFAA00), Vector3(0, 0, _R), 2.0);
-    _card('E', const Color(0xFF00EEFF), Vector3(_R, 0, 0), 2.0);
-    _card('W', const Color(0xFFFF55FF), Vector3(-_R, 0, 0), 2.0);
-    // Poles — SMALL circles (not giant)
-    _card('Up', const Color(0xFFFFFFFF), Vector3(0, _R, 0), 1.2);
-    _card('Dn', const Color(0xFF888888), Vector3(0, -_R, 0), 0.8);
-
-    // ─── CARDINAL TEXT LABELS (SpatialText billboards) ───
-    _label('tN', 'NORTH', Vector3(0, 2, -_R + 5), 3.5, const Color(0xFFFF4444));
-    _label('tS', 'SOUTH', Vector3(0, 2, _R - 5), 3.0, const Color(0xFFFFAA00));
-    _label('tE', 'EAST', Vector3(_R - 5, 2, 0), 3.0, const Color(0xFF00EEFF));
-    _label('tW', 'WEST', Vector3(-_R + 5, 2, 0), 3.0, const Color(0xFFFF55FF));
-    _label('tU', 'ZENITH', Vector3(0, _R - 5, 0), 2.5, const Color(0xFFFFFFFF));
-    _label('tD', 'NADIR', Vector3(0, -_R + 5, 0), 2.0, const Color(0xFF888888));
-
-    // ─── LATITUDE LABELS ───
-    _label(
-      't30',
-      '30\u00b0N',
-      Vector3(_R * 0.866 + 2, _R * 0.5, 0),
-      2.0,
-      const Color(0xFF00CCFF),
-    );
-    _label(
-      't-30',
-      '30\u00b0S',
-      Vector3(_R * 0.866 + 2, -_R * 0.5, 0),
-      2.0,
-      const Color(0xFF00CCFF),
-    );
-    _label(
-      't60',
-      '60\u00b0N',
-      Vector3(_R * 0.5 + 2, _R * 0.866, 0),
-      1.8,
-      const Color(0xFF0088DD),
-    );
-    _label(
-      't-60',
-      '60\u00b0S',
-      Vector3(_R * 0.5 + 2, -_R * 0.866, 0),
-      1.8,
-      const Color(0xFF0088DD),
-    );
-    _label(
-      'tEq',
-      'EQUATOR',
-      Vector3(_R + 3, 2, 0),
-      2.5,
-      const Color(0xFFFFDD00),
-    );
-
-    // ─── GROUND ───
-    engine.scene.add(
-      LitMeshNode(
-          name: 'gnd',
-          geometry: PlaneGeometry(width: 120, height: 120),
-          material: VRMaterial(color: const Color(0xFF060610)),
-        )
-        ..transform.position = Vector3(0, -1.6, 0)
-        ..onTransformChanged(),
-    );
-
-    // ─── LIGHTS — mostly emissive scene ───
-    engine.scene.add(Light.ambient(intensity: 0.5));
-    engine.scene.add(
-      Light.directional(direction: Vector3(-0.3, -1, -0.5), intensity: 0.35),
-    );
+    _activeDemo.init();
+    _buildDashboard();
   }
 
-  void _ring(String n, double r, double y, double h, Color c, Color e) {
-    engine.scene.add(
-      LitMeshNode(
-          name: n,
-          geometry: CylinderGeometry(radius: r, height: h, segments: 36),
-          material: VRMaterial(color: c, emissive: e, metallic: 0.5),
-        )
-        ..transform.position = Vector3(0, y, 0)
-        ..onTransformChanged(),
-    );
+  void _rebuildAll() {
+    _switchDemo(_currentDemoType);
   }
 
-  void _meridianSeg(
-    String n,
-    double lon,
-    double a1,
-    double a2,
-    Color c,
-    Color e,
-    double thick,
-  ) {
-    final p1 = Vector3(
-      _R * cos(a1) * sin(lon),
-      _R * sin(a1),
-      _R * cos(a1) * cos(lon),
-    );
-    final p2 = Vector3(
-      _R * cos(a2) * sin(lon),
-      _R * sin(a2),
-      _R * cos(a2) * cos(lon),
-    );
-    final mid = (p1 + p2) * 0.5;
-    final dir = p2 - p1;
-    final seg = LitMeshNode(
-      name: n,
-      geometry: CubeGeometry(size: 1),
-      material: VRMaterial(color: c, emissive: e, metallic: 0.4),
-    );
-    seg.transform.position = mid;
-    seg.transform.scale = Vector3(thick, dir.length, thick);
-    final up = Vector3(0, 1, 0);
-    final dn = dir.normalized();
-    final ax = up.cross(dn);
-    if (ax.length > 0.001) {
-      seg.transform.rotation = Quaternion.axisAngle(
-        ax.normalized(),
-        acos(up.dot(dn).clamp(-1.0, 1.0)),
-      );
-    }
-    seg.onTransformChanged();
-    engine.scene.add(seg);
-  }
+  void _buildDashboard() {
+    final dashboardRoot = Node(name: 'dashboard_root');
+    // Place the dashboard floating to the left of the center vision
+    dashboardRoot.transform.position = Vector3(-3.0, 0.6, -4.5);
+    dashboardRoot.onTransformChanged();
+    engine.scene.add(dashboardRoot);
 
-  void _beam(String n, Color c, Color e, Vector3 s) {
-    engine.scene.add(
-      LitMeshNode(
-          name: n,
-          geometry: CubeGeometry(size: 1),
-          material: VRMaterial(color: c, emissive: e),
-        )
-        ..transform.scale = s
-        ..onTransformChanged(),
-    );
-  }
-
-  void _card(String n, Color c, Vector3 p, double sz) {
-    engine.scene.add(
-      LitMeshNode(
-          name: 'c$n',
-          geometry: SphereGeometry(radius: sz, segments: 8),
-          material: VRMaterial(
-            color: c,
-            emissive: Color.fromARGB(
-              120,
-              (c.r * 255).round(),
-              (c.g * 255).round(),
-              (c.b * 255).round(),
-            ),
-            metallic: 0.7,
-          ),
-        )
-        ..transform.position = p
-        ..onTransformChanged(),
-    );
-  }
-
-  void _label(String n, String text, Vector3 p, double sz, Color c) {
-    final label = SpatialText(
-      name: n,
+    // Background Panel behind dashboard
+    final bgPanel = SpatialPanel(
       cameraRig: engine.cameraRig,
-      text: text,
-      fontSize: sz,
-      color: c,
-      lockY: true,
+      panelWidth: 2.2,
+      panelHeight: 2.7,
+      backgroundColor: const Color(0xEE0B1329),
+      borderColor: const Color(0xFF1E293B),
+      borderWidth: 2.0,
+      cornerRadius: 12.0,
     );
-    label.transform.position = p;
-    label.onTransformChanged();
-    engine.scene.add(label);
+    bgPanel.transform.position = Vector3(0, 0, -0.05);
+    bgPanel.onTransformChanged();
+    dashboardRoot.addChild(bgPanel);
+
+    // Dashboard Title
+    final title = SpatialText(
+      cameraRig: engine.cameraRig,
+      text: 'VRLIZATE 1.4.0 DASHBOARD',
+      fontSize: 1.8,
+      color: const Color(0xFF00FFCC),
+      fontWeight: FontWeight.bold,
+    );
+    title.transform.position = Vector3(0, 1.15, 0);
+    title.onTransformChanged();
+    dashboardRoot.addChild(title);
+
+    // 1. Grid Demo Selector Button
+    _createDashboardButton(
+      dashboardRoot,
+      label: '1. Grid Demo',
+      position: Vector3(-0.5, 0.72, 0),
+      onPress: () => _switchDemo(DemoType.grid),
+    );
+
+    // 2. Physics Selector Button
+    _createDashboardButton(
+      dashboardRoot,
+      label: '2. Physics',
+      position: Vector3(0.5, 0.72, 0),
+      onPress: () => _switchDemo(DemoType.physics),
+    );
+
+    // 3. Space Flight Selector Button
+    _createDashboardButton(
+      dashboardRoot,
+      label: '3. Space Flight',
+      position: Vector3(-0.5, 0.32, 0),
+      onPress: () => _switchDemo(DemoType.space),
+    );
+
+    // 4. VR Cinema Selector Button
+    _createDashboardButton(
+      dashboardRoot,
+      label: '4. VR Cinema',
+      position: Vector3(0.5, 0.32, 0),
+      onPress: () => _switchDemo(DemoType.cinema),
+    );
+
+    // 5. WiFi CSI Radar Selector Button
+    _createDashboardButton(
+      dashboardRoot,
+      label: '5. WiFi CSI Radar',
+      position: Vector3(-0.5, -0.08, 0),
+      onPress: () => _switchDemo(DemoType.radar),
+    );
+
+    // Toggle Lens Distortion Button
+    final distState = engine.renderPass.enableLensDistortion ? 'ON' : 'OFF';
+    _createDashboardButton(
+      dashboardRoot,
+      label: 'Lens Dist: $distState',
+      position: Vector3(0.5, -0.08, 0),
+      onPress: () {
+        engine.renderPass.enableLensDistortion = !engine.renderPass.enableLensDistortion;
+        _rebuildAll();
+      },
+    );
+
+    // Toggle Chromatic Aberration Button
+    final chromaState = engine.renderPass.enableChromaticAberration ? 'ON' : 'OFF';
+    _createDashboardButton(
+      dashboardRoot,
+      label: 'Chromatic: $chromaState',
+      position: Vector3(-0.5, -0.48, 0),
+      onPress: () {
+        engine.renderPass.enableChromaticAberration = !engine.renderPass.enableChromaticAberration;
+        _rebuildAll();
+      },
+    );
+
+    // FSR Scale Button
+    final fsrScale = engine.renderPass.fsrScale;
+    _createDashboardButton(
+      dashboardRoot,
+      label: 'FSR Scale: ${fsrScale.toStringAsFixed(2)}x',
+      position: Vector3(0.5, -0.48, 0),
+      onPress: () {
+        final current = engine.renderPass.fsrScale;
+        if (current == 1.0) {
+          engine.renderPass.fsrScale = 0.75;
+        } else if (current == 0.75) {
+          engine.renderPass.fsrScale = 0.5;
+        } else {
+          engine.renderPass.fsrScale = 1.0;
+        }
+        _rebuildAll();
+      },
+    );
+
+    // Live Metrics HUD
+    _statsLabel = SpatialText(
+      cameraRig: engine.cameraRig,
+      text: 'FPS: 0.0 | Frame: 0.0ms\nRendered: 0 | Culled: 0',
+      fontSize: 1.4,
+      color: const Color(0xFF94A3B8),
+    );
+    _statsLabel!.transform.position = Vector3(0, -0.98, 0);
+    _statsLabel!.onTransformChanged();
+    dashboardRoot.addChild(_statsLabel!);
+  }
+
+  void _createDashboardButton(
+    Node parent, {
+    required String label,
+    required Vector3 position,
+    required VoidCallback onPress,
+  }) {
+    final btn = SpatialButton(
+      name: 'dash_btn_${label.replaceAll(' ', '_')}',
+      transform: Transform3D(
+        position: position,
+        scale: Vector3(0.95, 0.3, 0.05),
+      ),
+      label: label,
+      panel: SpatialPanel(
+        cameraRig: engine.cameraRig,
+        panelWidth: 0.95,
+        panelHeight: 0.3,
+        backgroundColor: const Color(0xDD1E293B),
+        borderColor: const Color(0xFF334155),
+        borderWidth: 1.5,
+        cornerRadius: 6.0,
+      ),
+      onPress: (_) => onPress(),
+    );
+    parent.addChild(btn);
   }
 
   // ─── Step detection ───
-
   void _onAccel(AccelerometerEvent e) {
     final m = sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
     _fM = _fM * 0.85 + m * 0.15;
@@ -384,32 +302,23 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
     _pM = _fM;
   }
 
-  // ─── Animation — zone detection + cardinal pulse ───
-
+  // ─── Animation Loop ───
   void _animate(double dt) {
-    // Zone detection
-    _zone = _ZoneDetector.detect(engine.cameraRig.headTransform.forward);
+    // Update the active VR demo state
+    _activeDemo.update(dt);
 
-    final t = engine.frameCount * 0.016;
-
-    // Pulse cardinals
-    for (final l in ['cN', 'cS', 'cE', 'cW', 'cUp', 'cDn']) {
-      final n = engine.scene.root.findChild(l);
-      if (n != null) {
-        n.transform.scale = Vector3.all(
-          1.0 + sin(t * 1.5 + n.hashCode.toDouble()) * 0.06,
-        );
-        n.onTransformChanged();
-      }
+    // Update real-time performance indicators on the dashboard
+    if (_statsLabel != null) {
+      _statsLabel!.text = 'FPS: ${engine.fps.toStringAsFixed(1)} | Frame: ${engine.frameTimeMs.toStringAsFixed(1)}ms\n'
+                          'Rendered Nodes: ${engine.renderedCount} | Culled: ${engine.culledCount}';
     }
-
-    // Billboard texts auto-rotate in onUpdate() via Billboard base class
   }
 
   @override
   void dispose() {
     _accelSub?.cancel();
     _ticker.dispose();
+    _activeDemo.dispose();
     engine.dispose();
     super.dispose();
   }
@@ -418,8 +327,20 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: SizedBox.expand(
-        child: CustomPaint(painter: _P(engine, _repaint), size: Size.infinite),
+      body: GestureDetector(
+        onTap: () {
+          if (_activeDemo is PhysicsPlaygroundDemo) {
+            (_activeDemo as PhysicsPlaygroundDemo).handleTap();
+          } else {
+            engine.handleTap();
+          }
+        },
+        child: SizedBox.expand(
+          child: CustomPaint(
+            painter: _P(engine, _repaint),
+            size: Size.infinite,
+          ),
+        ),
       ),
     );
   }
@@ -428,9 +349,28 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
 class _P extends CustomPainter {
   final VREngine e;
   _P(this.e, _Notifier n) : super(repaint: n);
+
   @override
   void paint(Canvas c, Size s) {
-    if (!s.isEmpty) e.renderPass.renderStereo(c, s);
+    if (s.isEmpty) return;
+
+    // Render stereoscopic side-by-side viewports
+    e.renderPass.renderStereo(c, s);
+
+    // Overlay stereoscopically aligned reticles for both eyes
+    if (e.gazePointer != null) {
+      final halfW = s.width / 2;
+      final eyeSize = Size(halfW, s.height);
+
+      // Left eye reticle
+      e.gazePointer!.renderReticle(c, eyeSize);
+
+      // Right eye reticle
+      c.save();
+      c.translate(halfW, 0);
+      e.gazePointer!.renderReticle(c, eyeSize);
+      c.restore();
+    }
   }
 
   @override
