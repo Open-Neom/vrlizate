@@ -3,7 +3,7 @@
 **Version:** 0.1.0
 **Date:** 2026-04-15
 **Platform:** Dart 3.10 / Flutter 3.32 — Apple Silicon (M-series)
-**Tests:** 163 passing (0 failures)
+**Tests:** 198 passing (0 failures)
 
 ---
 
@@ -23,7 +23,7 @@ A **complete 3D/VR engine written in pure Dart** for Flutter. No native plugins 
 | Source lines | 5,334 |
 | Test files | 20 |
 | Test lines | 2,255 |
-| Total tests | 163 |
+| Total tests | 198 |
 | Pass rate | 100% |
 | Exported APIs | 58 |
 | Dependencies | 2 (vector_math, sensors_plus) |

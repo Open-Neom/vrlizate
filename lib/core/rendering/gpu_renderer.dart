@@ -34,6 +34,12 @@ abstract class GPURenderer {
   /// Sets a uniform value.
   void setUniform(String name, dynamic value);
 
+  /// Binds a buffer of instance transform matrices for instanced GPU rendering.
+  void bindInstancedTransformBuffer(List<double> transforms);
+
+  /// Draws the currently bound geometry with instanced rendering.
+  void drawInstanced(int instanceCount);
+
   /// Draws the currently bound geometry.
   void draw();
 
@@ -64,6 +70,12 @@ class GPURendererStub implements GPURenderer {
 
   @override
   void setUniform(String name, dynamic value) {}
+
+  @override
+  void bindInstancedTransformBuffer(List<double> transforms) {}
+
+  @override
+  void drawInstanced(int instanceCount) {}
 
   @override
   void draw() {}

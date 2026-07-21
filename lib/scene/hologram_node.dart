@@ -83,12 +83,15 @@ class HologramMeshNode extends LitMeshNode {
     }
   }
 
-  void _drawScanlines(Canvas canvas, Matrix4 viewProjection) {
+  void _drawScanlines(Canvas canvas, Matrix4 viewProjection, {Size viewportSize = const Size(800, 600)}) {
     final mvp = viewProjection * worldMatrix;
     double minY = double.infinity;
     double maxY = -double.infinity;
     double minX = double.infinity;
     double maxX = -double.infinity;
+
+    final halfWidth = viewportSize.width / 2;
+    final halfHeight = viewportSize.height / 2;
 
     for (final v in geometry.vertices) {
       final clip = mvp.transformed3(v);
@@ -101,9 +104,9 @@ class HologramMeshNode extends LitMeshNode {
       final ndcX = clip.x / w;
       final ndcY = clip.y / w;
       
-      // Convert NDC to screen-ish coordinates (width 800, height 600 viewport)
-      final x = (ndcX + 1.0) * 400.0;
-      final y = (1.0 - ndcY) * 300.0;
+      // Dynamic conversion from NDC to screen coordinates
+      final x = (ndcX + 1.0) * halfWidth;
+      final y = (1.0 - ndcY) * halfHeight;
 
       minY = min(minY, y);
       maxY = max(maxY, y);

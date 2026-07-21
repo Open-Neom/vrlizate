@@ -36,6 +36,12 @@ class ShaderProgram {
     }
   }
 
+  final Map<String, int> _uniformIndices = {};
+
+  int _getUniformIndex(String name) {
+    return _uniformIndices.putIfAbsent(name, () => _uniformIndices.length);
+  }
+
   /// Sets a uniform float value.
   void setFloat(String name, double value) {
     _uniforms[name] = ShaderUniform(
@@ -43,7 +49,8 @@ class ShaderProgram {
       type: UniformType.float,
       value: value,
     );
-    _fragmentShader?.setFloat(name.hashCode % 16, value);
+    final index = _getUniformIndex(name);
+    _fragmentShader?.setFloat(index, value);
   }
 
   /// Sets a uniform vec2 value.
@@ -53,6 +60,9 @@ class ShaderProgram {
       type: UniformType.vec2,
       value: [x, y],
     );
+    final index = _getUniformIndex(name);
+    _fragmentShader?.setFloat(index, x);
+    _fragmentShader?.setFloat(index + 1, y);
   }
 
   /// Sets a uniform vec4 value (color).
@@ -62,6 +72,11 @@ class ShaderProgram {
       type: UniformType.vec4,
       value: [color.r, color.g, color.b, color.a],
     );
+    final index = _getUniformIndex(name);
+    _fragmentShader?.setFloat(index, color.r);
+    _fragmentShader?.setFloat(index + 1, color.g);
+    _fragmentShader?.setFloat(index + 2, color.b);
+    _fragmentShader?.setFloat(index + 3, color.a);
   }
 
   /// Returns a Paint configured with this shader.
@@ -74,6 +89,7 @@ class ShaderProgram {
 
   void dispose() {
     _fragmentShader = null;
+    _uniformIndices.clear();
   }
 }
 

@@ -9,7 +9,7 @@ A complete 3D/VR engine written in **pure Dart** for Flutter.
 No native plugins for rendering. No platform channels. No C++ bridge. One codebase — runs on iOS, Android, Web, macOS, Windows, and Linux.
 
 ```
-5,334 lines of Dart  |  59 source files  |  2 dependencies  |  177 tests passing
+5,334 lines of Dart  |  59 source files  |  2 dependencies  |  198 tests passing
 ```
 
 ## Why VRlizate Exists

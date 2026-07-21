@@ -209,3 +209,56 @@ class HandState {
     return Ray.originDirection(indexTip, dir);
   }
 }
+
+/// Converts MediaPipe / MLKit 3D landmark coordinates to an OpenXR [HandState].
+class MediaPipeHandDriver {
+  /// Maps a list of 21 MediaPipe 3D normalized landmark points [x, y, z] to [HandState].
+  static void updateHandFromLandmarks(HandState state, List<Vector3> landmarks) {
+    if (landmarks.length < 21) {
+      state.tracked = false;
+      return;
+    }
+
+    state.tracked = true;
+
+    // MediaPipe 21 Landmark mapping -> OpenXR 26 Joints
+    state.joints[HandJoint.wrist] = landmarks[0];
+    
+    // Thumb
+    state.joints[HandJoint.thumbMetacarpal] = landmarks[1];
+    state.joints[HandJoint.thumbProximal] = landmarks[2];
+    state.joints[HandJoint.thumbDistal] = landmarks[3];
+    state.joints[HandJoint.thumbTip] = landmarks[4];
+
+    // Index
+    state.joints[HandJoint.indexMetacarpal] = landmarks[5];
+    state.joints[HandJoint.indexProximal] = landmarks[6];
+    state.joints[HandJoint.indexIntermediate] = landmarks[7];
+    state.joints[HandJoint.indexDistal] = landmarks[8];
+    state.joints[HandJoint.indexTip] = landmarks[8];
+
+    // Middle
+    state.joints[HandJoint.middleMetacarpal] = landmarks[9];
+    state.joints[HandJoint.middleProximal] = landmarks[10];
+    state.joints[HandJoint.middleIntermediate] = landmarks[11];
+    state.joints[HandJoint.middleDistal] = landmarks[12];
+    state.joints[HandJoint.middleTip] = landmarks[12];
+
+    // Ring
+    state.joints[HandJoint.ringMetacarpal] = landmarks[13];
+    state.joints[HandJoint.ringProximal] = landmarks[14];
+    state.joints[HandJoint.ringIntermediate] = landmarks[15];
+    state.joints[HandJoint.ringDistal] = landmarks[16];
+    state.joints[HandJoint.ringTip] = landmarks[16];
+
+    // Little
+    state.joints[HandJoint.littleMetacarpal] = landmarks[17];
+    state.joints[HandJoint.littleProximal] = landmarks[18];
+    state.joints[HandJoint.littleIntermediate] = landmarks[19];
+    state.joints[HandJoint.littleDistal] = landmarks[20];
+    state.joints[HandJoint.littleTip] = landmarks[20];
+
+    // Palm is mid-point between wrist and middle metacarpal
+    state.joints[HandJoint.palm] = (landmarks[0] + landmarks[9]) * 0.5;
+  }
+}

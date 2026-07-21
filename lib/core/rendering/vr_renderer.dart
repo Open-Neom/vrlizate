@@ -105,3 +105,59 @@ class VRMonoPainter extends CustomPainter {
   @override
   bool shouldRepaint(VRMonoPainter oldDelegate) => true;
 }
+
+/// Paints a VR scene in Red/Cyan Anaglyph 3D stereoscopic mode.
+/// Enables glasses-free or $1 3D glasses stereoscopic rendering.
+class VRAnaglyphPainter extends CustomPainter {
+  final VRRenderer renderer;
+  final VRCamera camera;
+  final StereoscopicProjection projection;
+
+  VRAnaglyphPainter({
+    required this.renderer,
+    required this.camera,
+    required this.projection,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+
+    // Left eye — Red channel
+    canvas.saveLayer(rect, Paint());
+    renderer.renderEye(canvas, size, camera, projection, true);
+    canvas.saveLayer(
+      rect,
+      Paint()
+        ..colorFilter = const ColorFilter.matrix(<double>[
+          1, 0, 0, 0, 0,
+          0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0,
+          0, 0, 0, 1, 0,
+        ])
+        ..blendMode = BlendMode.modulate,
+    );
+    canvas.restore();
+    canvas.restore();
+
+    // Right eye — Cyan channel (Green + Blue)
+    canvas.saveLayer(rect, Paint()..blendMode = BlendMode.plus);
+    renderer.renderEye(canvas, size, camera, projection, false);
+    canvas.saveLayer(
+      rect,
+      Paint()
+        ..colorFilter = const ColorFilter.matrix(<double>[
+          0, 0, 0, 0, 0,
+          0, 1, 0, 0, 0,
+          0, 0, 1, 0, 0,
+          0, 0, 0, 1, 0,
+        ])
+        ..blendMode = BlendMode.modulate,
+    );
+    canvas.restore();
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(VRAnaglyphPainter oldDelegate) => true;
+}

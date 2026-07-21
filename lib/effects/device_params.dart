@@ -80,4 +80,23 @@ class DeviceParams {
     distortionCoefficients: [0.35, 0.2],
     fovAngles: [45, 45, 45, 45],
   );
+
+  /// Decodes Google Cardboard QR configuration parameters from URI string.
+  static DeviceParams fromCardboardQrUri(Uri uri) {
+    final params = uri.queryParameters;
+    final vendor = params['v'] ?? 'Custom';
+    final model = params['m'] ?? 'VR Viewer';
+    final interLens = double.tryParse(params['ipd'] ?? '') ?? 0.064;
+    final screenLens = double.tryParse(params['std'] ?? '') ?? 0.042;
+    final k1 = double.tryParse(params['k1'] ?? '') ?? 0.34;
+    final k2 = double.tryParse(params['k2'] ?? '') ?? 0.55;
+
+    return DeviceParams(
+      vendor: vendor,
+      model: model,
+      interLensDistance: interLens,
+      screenToLensDistance: screenLens,
+      distortionCoefficients: [k1, k2],
+    );
+  }
 }
