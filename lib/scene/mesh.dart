@@ -201,9 +201,9 @@ class LitMeshNode extends MeshNode {
         if (material.metallic > 0 || material.roughness < 0.9) {
           final lightDir = (light.transform.position - worldCenter)..normalize();
           final halfVector = (lightDir + viewDir)..normalize();
-          final NdotH = max(0.0, worldNormal.dot(halfVector));
+          final ndotH = max(0.0, worldNormal.dot(halfVector));
           final shininess = (1.0 - material.roughness.clamp(0.01, 1.0)) * 128.0;
-          final spec = pow(NdotH, shininess).toDouble() * (0.2 + 0.8 * material.metallic);
+          final spec = pow(ndotH, shininess).toDouble() * (0.2 + 0.8 * material.metallic);
           specularFactor += spec * diffuse;
         }
       }

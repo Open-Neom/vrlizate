@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'dart:ui';
-import 'package:flutter/material.dart' show Colors, TextPainter, TextSpan, TextStyle, FontWeight, TextAlign;
+import 'package:flutter/material.dart' show TextPainter, TextSpan, TextStyle, FontWeight;
 import 'package:vector_math/vector_math.dart' hide Colors;
 import 'package:vrlizate/vrlizate.dart';
 
@@ -718,7 +718,7 @@ class WifiRadarDemo extends VRDemo {
 // 5. Grid/Latitude Demo (Original Example Code)
 // ============================================================================
 class GridDemo extends VRDemo {
-  static const double _R = 50.0;
+  static const double _r = 50.0;
 
   GridDemo(super.engine);
 
@@ -744,13 +744,13 @@ class GridDemo extends VRDemo {
     nodes.add(ground);
 
     // Ring, Meridian, Beam, Card, Label methods
-    _ring('eq', _R, 0, 0.2, const Color(0xFFFFDD00), const Color(0xFFBB9900));
-    _ring('l30', _R * 0.866, _R * 0.5, 0.08, const Color(0xFF00CCFF), const Color(0xFF0077AA));
-    _ring('l-30', _R * 0.866, -_R * 0.5, 0.08, const Color(0xFF00CCFF), const Color(0xFF0077AA));
-    _ring('l60', _R * 0.5, _R * 0.866, 0.06, const Color(0xFF0088DD), const Color(0xFF004477));
-    _ring('l-60', _R * 0.5, -_R * 0.866, 0.06, const Color(0xFF0088DD), const Color(0xFF004477));
-    _ring('l80', _R * 0.174, _R * 0.985, 0.04, const Color(0xFF6666CC), const Color(0xFF333366));
-    _ring('l-80', _R * 0.174, -_R * 0.985, 0.04, const Color(0xFF6666CC), const Color(0xFF333366));
+    _ring('eq', _r, 0, 0.2, const Color(0xFFFFDD00), const Color(0xFFBB9900));
+    _ring('l30', _r * 0.866, _r * 0.5, 0.08, const Color(0xFF00CCFF), const Color(0xFF0077AA));
+    _ring('l-30', _r * 0.866, -_r * 0.5, 0.08, const Color(0xFF00CCFF), const Color(0xFF0077AA));
+    _ring('l60', _r * 0.5, _r * 0.866, 0.06, const Color(0xFF0088DD), const Color(0xFF004477));
+    _ring('l-60', _r * 0.5, -_r * 0.866, 0.06, const Color(0xFF0088DD), const Color(0xFF004477));
+    _ring('l80', _r * 0.174, _r * 0.985, 0.04, const Color(0xFF6666CC), const Color(0xFF333366));
+    _ring('l-80', _r * 0.174, -_r * 0.985, 0.04, const Color(0xFF6666CC), const Color(0xFF333366));
 
     for (var j = 0; j < 6; j++) {
       final lon = j * pi / 6;
@@ -766,29 +766,29 @@ class GridDemo extends VRDemo {
       }
     }
 
-    _beam('aX', const Color(0xFFFF4444), const Color(0xFFAA2222), Vector3(_R * 2, 0.15, 0.15));
-    _beam('aY', const Color(0xFFCCCCFF), const Color(0xFF7777AA), Vector3(0.15, _R * 2, 0.15));
-    _beam('aZ', const Color(0xFF4466FF), const Color(0xFF2233AA), Vector3(0.15, 0.15, _R * 2));
+    _beam('aX', const Color(0xFFFF4444), const Color(0xFFAA2222), Vector3(_r * 2, 0.15, 0.15));
+    _beam('aY', const Color(0xFFCCCCFF), const Color(0xFF7777AA), Vector3(0.15, _r * 2, 0.15));
+    _beam('aZ', const Color(0xFF4466FF), const Color(0xFF2233AA), Vector3(0.15, 0.15, _r * 2));
 
-    _card('N', const Color(0xFFFF3333), Vector3(0, 0, -_R), 2.5);
-    _card('S', const Color(0xFFFFAA00), Vector3(0, 0, _R), 2.0);
-    _card('E', const Color(0xFF00EEFF), Vector3(_R, 0, 0), 2.0);
-    _card('W', const Color(0xFFFF55FF), Vector3(-_R, 0, 0), 2.0);
-    _card('Up', const Color(0xFFFFFFFF), Vector3(0, _R, 0), 1.2);
-    _card('Dn', const Color(0xFF888888), Vector3(0, -_R, 0), 0.8);
+    _card('N', const Color(0xFFFF3333), Vector3(0, 0, -_r), 2.5);
+    _card('S', const Color(0xFFFFAA00), Vector3(0, 0, _r), 2.0);
+    _card('E', const Color(0xFF00EEFF), Vector3(_r, 0, 0), 2.0);
+    _card('W', const Color(0xFFFF55FF), Vector3(-_r, 0, 0), 2.0);
+    _card('Up', const Color(0xFFFFFFFF), Vector3(0, _r, 0), 1.2);
+    _card('Dn', const Color(0xFF888888), Vector3(0, -_r, 0), 0.8);
 
-    _label('tN', 'NORTH', Vector3(0, 2, -_R + 5), 3.5, const Color(0xFFFF4444));
-    _label('tS', 'SOUTH', Vector3(0, 2, _R - 5), 3.0, const Color(0xFFFFAA00));
-    _label('tE', 'EAST', Vector3(_R - 5, 2, 0), 3.0, const Color(0xFF00EEFF));
-    _label('tW', 'WEST', Vector3(-_R + 5, 2, 0), 3.0, const Color(0xFFFF55FF));
-    _label('tU', 'ZENITH', Vector3(0, _R - 5, 0), 2.5, const Color(0xFFFFFFFF));
-    _label('tD', 'NADIR', Vector3(0, -_R + 5, 0), 2.0, const Color(0xFF888888));
+    _label('tN', 'NORTH', Vector3(0, 2, -_r + 5), 3.5, const Color(0xFFFF4444));
+    _label('tS', 'SOUTH', Vector3(0, 2, _r - 5), 3.0, const Color(0xFFFFAA00));
+    _label('tE', 'EAST', Vector3(_r - 5, 2, 0), 3.0, const Color(0xFF00EEFF));
+    _label('tW', 'WEST', Vector3(-_r + 5, 2, 0), 3.0, const Color(0xFFFF55FF));
+    _label('tU', 'ZENITH', Vector3(0, _r - 5, 0), 2.5, const Color(0xFFFFFFFF));
+    _label('tD', 'NADIR', Vector3(0, -_r + 5, 0), 2.0, const Color(0xFF888888));
 
-    _label('t30', '30\u00b0N', Vector3(_R * 0.866 + 2, _R * 0.5, 0), 2.0, const Color(0xFF00CCFF));
-    _label('t-30', '30\u00b0S', Vector3(_R * 0.866 + 2, -_R * 0.5, 0), 2.0, const Color(0xFF00CCFF));
-    _label('t60', '60\u00b0N', Vector3(_R * 0.5 + 2, _R * 0.866, 0), 1.8, const Color(0xFF0088DD));
-    _label('t-60', '60\u00b0S', Vector3(_R * 0.5 + 2, -_R * 0.866, 0), 1.8, const Color(0xFF0088DD));
-    _label('tEq', 'EQUATOR', Vector3(_R + 3, 2, 0), 2.5, const Color(0xFFFFDD00));
+    _label('t30', '30\u00b0N', Vector3(_r * 0.866 + 2, _r * 0.5, 0), 2.0, const Color(0xFF00CCFF));
+    _label('t-30', '30\u00b0S', Vector3(_r * 0.866 + 2, -_r * 0.5, 0), 2.0, const Color(0xFF00CCFF));
+    _label('t60', '60\u00b0N', Vector3(_r * 0.5 + 2, _r * 0.866, 0), 1.8, const Color(0xFF0088DD));
+    _label('t-60', '60\u00b0S', Vector3(_r * 0.5 + 2, -_r * 0.866, 0), 1.8, const Color(0xFF0088DD));
+    _label('tEq', 'EQUATOR', Vector3(_r + 3, 2, 0), 2.5, const Color(0xFFFFDD00));
   }
 
   void _ring(String n, double r, double y, double h, Color c, Color e) {
@@ -804,8 +804,8 @@ class GridDemo extends VRDemo {
   }
 
   void _meridianSeg(String n, double lon, double a1, double a2, Color c, Color e, double thick) {
-    final p1 = Vector3(_R * cos(a1) * sin(lon), _R * sin(a1), _R * cos(a1) * cos(lon));
-    final p2 = Vector3(_R * cos(a2) * sin(lon), _R * sin(a2), _R * cos(a2) * cos(lon));
+    final p1 = Vector3(_r * cos(a1) * sin(lon), _r * sin(a1), _r * cos(a1) * cos(lon));
+    final p2 = Vector3(_r * cos(a2) * sin(lon), _r * sin(a2), _r * cos(a2) * cos(lon));
     final mid = (p1 + p2) * 0.5;
     final dir = p2 - p1;
     final seg = LitMeshNode(

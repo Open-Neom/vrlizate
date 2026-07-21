@@ -33,7 +33,7 @@ enum DemoType {
 // ═══════════════════════════════════════════════════════════════
 enum ViewZone { front, left, right, up, down, behind }
 
-class _ZoneDetector {
+class ZoneDetector {
   /// Computes which zone the camera is looking toward.
   /// Uses dot product of forward vector vs world directions.
   static ViewZone detect(Vector3 forward) {

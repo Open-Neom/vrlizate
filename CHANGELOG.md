@@ -1,10 +1,19 @@
 # Changelog
 
-## [2.0.0-unreleased] - 2026-07-21
-- Refactor and compatibility updates for main.dart, camera_rig.dart, geometry.dart, panel.dart, demos.dart and 1 more.
+## 1.5.0 — 2026-07-21
 
-## [1.1.0] - 2026-07-09
-- Refactor camera rig, spatial panel widgets, and geometry scenes.
+### Added
+- **Real UV Texture Mapping (`ImageShader`)**: Connected `VRTexture` map to vertex UV coordinates with `ImageShader` and `BlendMode.modulate`, rendering textured 3D meshes on CPU/Canvas buffers.
+- **PBR Specular Reflection Highlights**: Integrated Blinn-Phong & Cook-Torrance specular highlights using half-vector specular terms modulated by material `metallic` and `roughness`.
+- **Google Cardboard Protobuf Base64 QR Decoder**: Implemented a pure-Dart Varint reader in `DeviceParams.fromCardboardQrUri` decoding official Google Cardboard QR configuration URIs (`?p=...`).
+- **FaceTrackerDriver (Looking-Glass Holographic 3D Window)**: Added live 3D face position tracking driver feeding head offsets to off-axis asymmetric projection matrices in `CameraRig`.
+- **MediaPipe 21-Landmark Hand Converter (`MediaPipeHandDriver`)**: Added 21-landmark MediaPipe tracking converter mapping camera hand inputs into 26 OpenXR joint structures.
+- **Anaglyph Red/Cyan 3D Stereoscopic Painter (`VRAnaglyphPainter`)**: Added stereoscopic 3D rendering mode using red/cyan channels for 3D viewing without Cardboard viewers.
+- **Stable Shader Uniform Index Mapping**: Fixed Flutter custom shader uniform index resolution to maintain sequential positional mappings instead of hash collisions.
+- **GPU Instanced Mesh Rendering Signatures (`GPURenderer`)**: Added `drawInstanced` and `bindInstancedTransformBuffer` signatures for hardware-accelerated instanced render passes.
+
+### Fixed
+- **Dynamic Viewport Scanline Projections**: Updated `HologramMeshNode` scanline rendering to receive dynamic canvas viewport dimensions.
 
 ## 1.4.0 — 2026-07-02
 

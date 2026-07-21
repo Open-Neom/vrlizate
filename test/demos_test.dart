@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:vrlizate/vrlizate.dart';
+// ignore: avoid_relative_lib_imports
 import '../example/lib/demos.dart';
 
 void main() {
