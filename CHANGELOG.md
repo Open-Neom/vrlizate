@@ -1,8 +1,10 @@
 # Changelog
 
+## [2.0.0-unreleased] - 2026-07-21
+- Refactor and compatibility updates for main.dart, camera_rig.dart, geometry.dart, panel.dart, demos.dart and 1 more.
+
 ## [1.1.0] - 2026-07-09
 - Refactor camera rig, spatial panel widgets, and geometry scenes.
-
 
 ## 1.4.0 — 2026-07-02
 
