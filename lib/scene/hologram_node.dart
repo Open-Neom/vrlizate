@@ -13,6 +13,8 @@ class HologramMeshNode extends LitMeshNode {
   
   static double time = 0.0; // Global time tick updated by engine/demo
 
+  Size viewportSize;
+
   HologramMeshNode({
     required super.name,
     required super.geometry,
@@ -20,6 +22,7 @@ class HologramMeshNode extends LitMeshNode {
     this.scanLineSpacing = 8.0,
     this.glitchFrequency = 0.15,
     this.hologramColor = const Color(0x9906B6D4), // Semi-transparent Cyan
+    this.viewportSize = const Size(800, 600),
   }) : super(
          material: VRMaterial(
            color: hologramColor,
@@ -73,7 +76,7 @@ class HologramMeshNode extends LitMeshNode {
       material.wireframe = false; // restore
 
       // --- Overlay scanline effects directly over screen projection space ---
-      _drawScanlines(canvas, viewProjection);
+      _drawScanlines(canvas, viewProjection, viewportSize: viewportSize);
 
     } finally {
       // Always restore original transform parameters

@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:vector_math/vector_math.dart';
 
 /// Interface for anything that can receive rotation input.
 abstract class RotationTarget {
@@ -438,5 +439,27 @@ class _DynamicTarget implements RotationTarget {
   @override
   void reset() {
     _target.reset();
+  }
+}
+
+/// Driver that feeds live camera/MLKit 3D face position coordinates into [CameraRig].
+/// Delivers the Looking-Glass "Holographic 3D Window" effect by altering off-axis projection.
+class FaceTrackerDriver {
+  final dynamic cameraRig;
+  
+  Vector3 facePosition = Vector3(0, 0, 0.4); // Default 40cm in front of screen
+
+  FaceTrackerDriver({required this.cameraRig});
+
+  /// Feeds new 3D eye/face coordinates from camera landmark stream (in meters relative to screen center).
+  void updateFacePosition(double x, double y, double distanceMeters) {
+    facePosition = Vector3(x, y, distanceMeters);
+  }
+
+  /// Calculates the current face-tracked holographic projection matrix for the rig.
+  Matrix4 get projectionMatrix {
+    return cameraRig.faceTrackedProjectionMatrix(
+      eyePosRelative: facePosition,
+    );
   }
 }

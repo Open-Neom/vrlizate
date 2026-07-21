@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'texture.dart';
 
 /// Material defines the visual appearance of a mesh surface.
 class VRMaterial {
@@ -10,6 +11,7 @@ class VRMaterial {
   bool doubleSided;
   bool wireframe;
   BlendMode blendMode;
+  VRTexture? map;
 
   VRMaterial({
     this.color = const Color(0xFFCCCCCC),
@@ -20,6 +22,7 @@ class VRMaterial {
     this.doubleSided = false,
     this.wireframe = false,
     this.blendMode = BlendMode.srcOver,
+    this.map,
   });
 
   bool get isTransparent => opacity < 1.0;

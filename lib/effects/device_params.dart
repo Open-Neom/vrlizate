@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 /// VR headset device parameters.
 /// Different headsets have different lens properties.
 class DeviceParams {
@@ -82,8 +85,22 @@ class DeviceParams {
   );
 
   /// Decodes Google Cardboard QR configuration parameters from URI string.
+  /// Decodes official Cardboard Protobuf payloads in `?p=` as well as custom query parameters.
   static DeviceParams fromCardboardQrUri(Uri uri) {
     final params = uri.queryParameters;
+
+    // Check if official Cardboard base64 protobuf ?p= parameter is present
+    if (params.containsKey('p')) {
+      try {
+        final rawBase64 = params['p']!.replaceAll('-', '+').replaceAll('_', '/');
+        final padded = rawBase64.padRight((rawBase64.length + 3) & ~3, '=');
+        final bytes = base64Decode(padded);
+        return _parseProtobufCardboardParams(bytes);
+      } catch (_) {
+        // Fallback to query parameters if protobuf parsing fails
+      }
+    }
+
     final vendor = params['v'] ?? 'Custom';
     final model = params['m'] ?? 'VR Viewer';
     final interLens = double.tryParse(params['ipd'] ?? '') ?? 0.064;
@@ -97,6 +114,66 @@ class DeviceParams {
       interLensDistance: interLens,
       screenToLensDistance: screenLens,
       distortionCoefficients: [k1, k2],
+    );
+  }
+
+  static DeviceParams _parseProtobufCardboardParams(Uint8List bytes) {
+    String vendor = 'Google Cardboard';
+    String model = 'Custom Viewer';
+    double screenToLens = 0.042;
+    double interLens = 0.064;
+    double trayToLens = 0.035;
+    final distortion = <double>[];
+
+    var offset = 0;
+    while (offset < bytes.length) {
+      final tag = bytes[offset++];
+      final fieldNumber = tag >> 3;
+      final wireType = tag & 0x07;
+
+      if (wireType == 2) {
+        // Length-delimited (String or submessage)
+        var len = 0;
+        var shift = 0;
+        while (offset < bytes.length) {
+          final b = bytes[offset++];
+          len |= (b & 0x7F) << shift;
+          if ((b & 0x80) == 0) break;
+          shift += 7;
+        }
+
+        if (offset + len <= bytes.length) {
+          final stringVal = utf8.decode(bytes.sublist(offset, offset + len), allowMalformed: true);
+          if (fieldNumber == 1) vendor = stringVal;
+          if (fieldNumber == 2) model = stringVal;
+          offset += len;
+        }
+      } else if (wireType == 5) {
+        // 32-bit float
+        if (offset + 4 <= bytes.length) {
+          final floatVal = ByteData.sublistView(bytes, offset, offset + 4).getFloat32(0, Endian.little);
+          offset += 4;
+          if (fieldNumber == 3) screenToLens = floatVal;
+          if (fieldNumber == 4) interLens = floatVal;
+          if (fieldNumber == 6) trayToLens = floatVal;
+          if (fieldNumber == 7) distortion.add(floatVal);
+        }
+      } else if (wireType == 0) {
+        // Varint (skip)
+        while (offset < bytes.length && (bytes[offset++] & 0x80) != 0) {}
+      } else {
+        // Unknown wire type, terminate loop safely
+        break;
+      }
+    }
+
+    return DeviceParams(
+      vendor: vendor.isEmpty ? 'Cardboard' : vendor,
+      model: model.isEmpty ? 'Viewer' : model,
+      screenToLensDistance: screenToLens,
+      interLensDistance: interLens,
+      trayToLensDistance: trayToLens,
+      distortionCoefficients: distortion.isNotEmpty ? distortion : const [0.34, 0.55],
     );
   }
 }

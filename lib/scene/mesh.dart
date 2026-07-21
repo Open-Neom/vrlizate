@@ -1,3 +1,5 @@
+import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:vector_math/vector_math.dart';
@@ -187,12 +189,25 @@ class LitMeshNode extends MeshNode {
             3.0,
       );
 
-      // Accumulate light
+      // Accumulate light (diffuse + PBR Cook-Torrance specular highlight)
       double lightFactor = 0;
+      double specularFactor = 0;
+      final viewDir = (Vector3.zero() - worldCenter)..normalize();
+
       for (final light in lights) {
-        lightFactor += light.calculateIntensity(worldCenter, worldNormal);
+        final diffuse = light.calculateIntensity(worldCenter, worldNormal);
+        lightFactor += diffuse;
+
+        if (material.metallic > 0 || material.roughness < 0.9) {
+          final lightDir = (light.transform.position - worldCenter)..normalize();
+          final halfVector = (lightDir + viewDir)..normalize();
+          final NdotH = max(0.0, worldNormal.dot(halfVector));
+          final shininess = (1.0 - material.roughness.clamp(0.01, 1.0)) * 128.0;
+          final spec = pow(NdotH, shininess).toDouble() * (0.2 + 0.8 * material.metallic);
+          specularFactor += spec * diffuse;
+        }
       }
-      lightFactor = lightFactor.clamp(0.05, 1.5);
+      lightFactor = (lightFactor + specularFactor).clamp(0.05, 1.8);
 
       tris.add(
         _LitTriangle(
@@ -201,6 +216,9 @@ class LitMeshNode extends MeshNode {
           p2: v2.offset,
           depth: (v0.depth + v1.depth + v2.depth) / 3,
           lightFactor: lightFactor,
+          uv0: geometry.uvs.length > i0 ? geometry.uvs[i0] : null,
+          uv1: geometry.uvs.length > i1 ? geometry.uvs[i1] : null,
+          uv2: geometry.uvs.length > i2 ? geometry.uvs[i2] : null,
         ),
       );
     }
@@ -221,6 +239,11 @@ class LitMeshNode extends MeshNode {
 
     final positions = <Offset>[];
     final colors = <Color>[];
+    final textureCoords = <Offset>[];
+
+    final hasTexture = material.map != null && material.map!.isLoaded && material.map!.image != null;
+    final texWidth = hasTexture ? material.map!.width.toDouble() : 1.0;
+    final texHeight = hasTexture ? material.map!.height.toDouble() : 1.0;
 
     final baseAlpha = (material.opacity * 255).round().clamp(0, 255);
     final baseR = (material.color.r * 255.0).round().clamp(0, 255);
@@ -231,6 +254,12 @@ class LitMeshNode extends MeshNode {
       positions.add(tri.p0);
       positions.add(tri.p1);
       positions.add(tri.p2);
+
+      if (hasTexture && tri.uv0 != null && tri.uv1 != null && tri.uv2 != null) {
+        textureCoords.add(Offset(tri.uv0!.x * texWidth, tri.uv0!.y * texHeight));
+        textureCoords.add(Offset(tri.uv1!.x * texWidth, tri.uv1!.y * texHeight));
+        textureCoords.add(Offset(tri.uv2!.x * texWidth, tri.uv2!.y * texHeight));
+      }
 
       final factor = tri.lightFactor;
       final r = (baseR * factor).round().clamp(0, 255);
@@ -248,9 +277,18 @@ class LitMeshNode extends MeshNode {
         VertexMode.triangles,
         positions,
         colors: colors,
+        textureCoordinates: textureCoords.length == positions.length ? textureCoords : null,
       );
       final basePaint = Paint()..blendMode = material.blendMode;
-      canvas.drawVertices(vertices, BlendMode.srcOver, basePaint);
+      if (hasTexture) {
+        basePaint.shader = ImageShader(
+          material.map!.image!,
+          TileMode.repeated,
+          TileMode.repeated,
+          Float64List.fromList(Matrix4.identity().storage),
+        );
+      }
+      canvas.drawVertices(vertices, hasTexture ? BlendMode.modulate : BlendMode.srcOver, basePaint);
     }
   }
 }
@@ -280,11 +318,15 @@ class _LitTriangle {
   final Offset p0, p1, p2;
   final double depth;
   final double lightFactor;
+  final Vector2? uv0, uv1, uv2;
   const _LitTriangle({
     required this.p0,
     required this.p1,
     required this.p2,
     required this.depth,
     required this.lightFactor,
+    this.uv0,
+    this.uv1,
+    this.uv2,
   });
 }

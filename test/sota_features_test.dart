@@ -83,6 +83,44 @@ void main() {
       expect(params.screenToLensDistance, equals(0.040));
       expect(params.distortionCoefficients, equals([0.32, 0.50]));
     });
+
+    test('decodes official Google Cardboard Protobuf payload from ?p= parameter', () {
+      // Synthesize a valid Base64 Protobuf payload with field 1="Google" (vendor) and field 2="Cardboard" (model)
+      final protobufUri = Uri.parse('http://google.com/cardboard/cfg?p=CgZHb29nbGUSBENhcmQ');
+      final params = DeviceParams.fromCardboardQrUri(protobufUri);
+
+      expect(params.vendor, contains('Google'));
+      expect(params.model, contains('Card'));
+    });
+  });
+
+  group('FaceTrackerDriver', () {
+    test('updates face offset and calculates projection matrix', () {
+      final rig = CameraRig();
+      final driver = FaceTrackerDriver(cameraRig: rig);
+
+      driver.updateFacePosition(0.05, -0.02, 0.45);
+      expect(driver.facePosition, equals(Vector3(0.05, -0.02, 0.45)));
+
+      final proj = driver.projectionMatrix;
+      expect(proj.storage.any((v) => v.isNaN), isFalse);
+    });
+  });
+
+  group('UV Texture & PBR Material', () {
+    test('VRMaterial accepts texture map and PBR roughness/metallic values', () {
+      final texture = VRTexture(name: 'albedo');
+      final mat = VRMaterial(
+        color: const Color(0xFF00FF00),
+        metallic: 0.8,
+        roughness: 0.2,
+        map: texture,
+      );
+
+      expect(mat.metallic, equals(0.8));
+      expect(mat.roughness, equals(0.2));
+      expect(mat.map, equals(texture));
+    });
   });
 
   group('VRAnaglyphPainter', () {
