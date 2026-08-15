@@ -199,11 +199,14 @@ class LitMeshNode extends MeshNode {
         lightFactor += diffuse;
 
         if (material.metallic > 0 || material.roughness < 0.9) {
-          final lightDir = (light.transform.position - worldCenter)..normalize();
+          final lightDir = (light.transform.position - worldCenter)
+            ..normalize();
           final halfVector = (lightDir + viewDir)..normalize();
           final ndotH = max(0.0, worldNormal.dot(halfVector));
           final shininess = (1.0 - material.roughness.clamp(0.01, 1.0)) * 128.0;
-          final spec = pow(ndotH, shininess).toDouble() * (0.2 + 0.8 * material.metallic);
+          final spec =
+              pow(ndotH, shininess).toDouble() *
+              (0.2 + 0.8 * material.metallic);
           specularFactor += spec * diffuse;
         }
       }
@@ -241,7 +244,10 @@ class LitMeshNode extends MeshNode {
     final colors = <Color>[];
     final textureCoords = <Offset>[];
 
-    final hasTexture = material.map != null && material.map!.isLoaded && material.map!.image != null;
+    final hasTexture =
+        material.map != null &&
+        material.map!.isLoaded &&
+        material.map!.image != null;
     final texWidth = hasTexture ? material.map!.width.toDouble() : 1.0;
     final texHeight = hasTexture ? material.map!.height.toDouble() : 1.0;
 
@@ -256,9 +262,15 @@ class LitMeshNode extends MeshNode {
       positions.add(tri.p2);
 
       if (hasTexture && tri.uv0 != null && tri.uv1 != null && tri.uv2 != null) {
-        textureCoords.add(Offset(tri.uv0!.x * texWidth, tri.uv0!.y * texHeight));
-        textureCoords.add(Offset(tri.uv1!.x * texWidth, tri.uv1!.y * texHeight));
-        textureCoords.add(Offset(tri.uv2!.x * texWidth, tri.uv2!.y * texHeight));
+        textureCoords.add(
+          Offset(tri.uv0!.x * texWidth, tri.uv0!.y * texHeight),
+        );
+        textureCoords.add(
+          Offset(tri.uv1!.x * texWidth, tri.uv1!.y * texHeight),
+        );
+        textureCoords.add(
+          Offset(tri.uv2!.x * texWidth, tri.uv2!.y * texHeight),
+        );
       }
 
       final factor = tri.lightFactor;
@@ -277,7 +289,9 @@ class LitMeshNode extends MeshNode {
         VertexMode.triangles,
         positions,
         colors: colors,
-        textureCoordinates: textureCoords.length == positions.length ? textureCoords : null,
+        textureCoordinates: textureCoords.length == positions.length
+            ? textureCoords
+            : null,
       );
       final basePaint = Paint()..blendMode = material.blendMode;
       if (hasTexture) {
@@ -288,7 +302,11 @@ class LitMeshNode extends MeshNode {
           Float64List.fromList(Matrix4.identity().storage),
         );
       }
-      canvas.drawVertices(vertices, hasTexture ? BlendMode.modulate : BlendMode.srcOver, basePaint);
+      canvas.drawVertices(
+        vertices,
+        hasTexture ? BlendMode.modulate : BlendMode.srcOver,
+        basePaint,
+      );
     }
   }
 }

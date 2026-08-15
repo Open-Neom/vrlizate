@@ -87,19 +87,29 @@ void main() {
       expect(geometry.indices.length, equals(6));
     });
 
-    test('CameraRig faceTrackedProjectionMatrix calculates generalized perspective', () {
-      final rig = CameraRig(near: 0.1, far: 100.0);
-      final eyePos = Vector3(0.02, -0.01, 0.5); // user's eye relative to screen center
+    test(
+      'CameraRig faceTrackedProjectionMatrix calculates generalized perspective',
+      () {
+        final rig = CameraRig(near: 0.1, far: 100.0);
+        final eyePos = Vector3(
+          0.02,
+          -0.01,
+          0.5,
+        ); // user's eye relative to screen center
 
-      final matrix = rig.faceTrackedProjectionMatrix(
-        eyePosRelative: eyePos,
-        screenWidth: 0.16,
-        screenHeight: 0.08,
-      );
+        final matrix = rig.faceTrackedProjectionMatrix(
+          eyePosRelative: eyePos,
+          screenWidth: 0.16,
+          screenHeight: 0.08,
+        );
 
-      // Verify that matrix has values (non-identity and non-zero)
-      expect(matrix.storage[0], isNot(equals(1.0)));
-      expect(matrix.storage[15], equals(0.0)); // perspective projection matrices have storage[15] = 0
-    });
+        // Verify that matrix has values (non-identity and non-zero)
+        expect(matrix.storage[0], isNot(equals(1.0)));
+        expect(
+          matrix.storage[15],
+          equals(0.0),
+        ); // perspective projection matrices have storage[15] = 0
+      },
+    );
   });
 }

@@ -33,10 +33,7 @@ void main() {
     });
 
     test('simulated CSI frame structures are correct', () {
-      final frame = CsiFrame(
-        timestamp: 1000,
-        amplitudes: [1.0, 1.2, 0.9, 1.1],
-      );
+      final frame = CsiFrame(timestamp: 1000, amplitudes: [1.0, 1.2, 0.9, 1.1]);
 
       expect(frame.timestamp, equals(1000));
       expect(frame.amplitudes.length, equals(4));
@@ -60,7 +57,10 @@ void main() {
   group('MediaPipeHandDriver', () {
     test('converts 21 MediaPipe landmarks to OpenXR HandState joints', () {
       final state = HandState(hand: ControllerHand.right);
-      final landmarks = List.generate(21, (i) => Vector3(i * 0.01, i * 0.02, i * 0.03));
+      final landmarks = List.generate(
+        21,
+        (i) => Vector3(i * 0.01, i * 0.02, i * 0.03),
+      );
 
       MediaPipeHandDriver.updateHandFromLandmarks(state, landmarks);
 
@@ -74,7 +74,9 @@ void main() {
 
   group('DeviceParams QR Parser', () {
     test('decodes Cardboard QR parameters from URI', () {
-      final uri = Uri.parse('http://google.com/cardboard/cfg?v=OpenNeom&m=VR-One&ipd=0.065&std=0.040&k1=0.32&k2=0.50');
+      final uri = Uri.parse(
+        'http://google.com/cardboard/cfg?v=OpenNeom&m=VR-One&ipd=0.065&std=0.040&k1=0.32&k2=0.50',
+      );
       final params = DeviceParams.fromCardboardQrUri(uri);
 
       expect(params.vendor, equals('OpenNeom'));
@@ -84,14 +86,19 @@ void main() {
       expect(params.distortionCoefficients, equals([0.32, 0.50]));
     });
 
-    test('decodes official Google Cardboard Protobuf payload from ?p= parameter', () {
-      // Synthesize a valid Base64 Protobuf payload with field 1="Google" (vendor) and field 2="Cardboard" (model)
-      final protobufUri = Uri.parse('http://google.com/cardboard/cfg?p=CgZHb29nbGUSBENhcmQ');
-      final params = DeviceParams.fromCardboardQrUri(protobufUri);
+    test(
+      'decodes official Google Cardboard Protobuf payload from ?p= parameter',
+      () {
+        // Synthesize a valid Base64 Protobuf payload with field 1="Google" (vendor) and field 2="Cardboard" (model)
+        final protobufUri = Uri.parse(
+          'http://google.com/cardboard/cfg?p=CgZHb29nbGUSBENhcmQ',
+        );
+        final params = DeviceParams.fromCardboardQrUri(protobufUri);
 
-      expect(params.vendor, contains('Google'));
-      expect(params.model, contains('Card'));
-    });
+        expect(params.vendor, contains('Google'));
+        expect(params.model, contains('Card'));
+      },
+    );
   });
 
   group('FaceTrackerDriver', () {
@@ -108,19 +115,22 @@ void main() {
   });
 
   group('UV Texture & PBR Material', () {
-    test('VRMaterial accepts texture map and PBR roughness/metallic values', () {
-      final texture = VRTexture(name: 'albedo');
-      final mat = VRMaterial(
-        color: const Color(0xFF00FF00),
-        metallic: 0.8,
-        roughness: 0.2,
-        map: texture,
-      );
+    test(
+      'VRMaterial accepts texture map and PBR roughness/metallic values',
+      () {
+        final texture = VRTexture(name: 'albedo');
+        final mat = VRMaterial(
+          color: const Color(0xFF00FF00),
+          metallic: 0.8,
+          roughness: 0.2,
+          map: texture,
+        );
 
-      expect(mat.metallic, equals(0.8));
-      expect(mat.roughness, equals(0.2));
-      expect(mat.map, equals(texture));
-    });
+        expect(mat.metallic, equals(0.8));
+        expect(mat.roughness, equals(0.2));
+        expect(mat.map, equals(texture));
+      },
+    );
   });
 
   group('VRAnaglyphPainter', () {
@@ -140,5 +150,11 @@ void main() {
 
 class _StubRenderer implements VRRenderer {
   @override
-  void renderEye(Canvas canvas, Size viewportSize, VRCamera camera, StereoscopicProjection projection, bool isLeftEye) {}
+  void renderEye(
+    Canvas canvas,
+    Size viewportSize,
+    VRCamera camera,
+    StereoscopicProjection projection,
+    bool isLeftEye,
+  ) {}
 }

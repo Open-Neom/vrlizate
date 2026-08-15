@@ -47,7 +47,7 @@ class GazePointer {
     if (_gazeTargetId != null) {
       onTap?.call(_gazeTargetId!);
       onDwellSelect?.call(_gazeTargetId!);
-      
+
       // Trigger Pointable component if registered on the node
       if (hit != null && hit.node.pointable != null) {
         hit.node.pointable!.press(hit);

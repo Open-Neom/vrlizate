@@ -1,8 +1,7 @@
 import 'package:flutter/gestures.dart' show kPrimaryButton;
 import 'package:flutter/services.dart'
     show KeyDownEvent, KeyEvent, KeyRepeatEvent, KeyUpEvent, LogicalKeyboardKey;
-import 'package:flutter/widgets.dart'
-    hide Matrix4, Quaternion, Vector2, Vector3, Vector4;
+import 'package:flutter/widgets.dart' hide Matrix4;
 import 'package:vector_math/vector_math.dart';
 
 import '../../interaction/raycast.dart';
@@ -175,8 +174,11 @@ class DesktopInputDriver {
 
     final nearH = inv.transform(Vector4(ndx, ndy, -1, 1));
     final farH = inv.transform(Vector4(ndx, ndy, 1, 1));
-    final nearP =
-        Vector3(nearH.x / nearH.w, nearH.y / nearH.w, nearH.z / nearH.w);
+    final nearP = Vector3(
+      nearH.x / nearH.w,
+      nearH.y / nearH.w,
+      nearH.z / nearH.w,
+    );
     final farP = Vector3(farH.x / farH.w, farH.y / farH.w, farH.z / farH.w);
 
     final dir = farP - nearP;

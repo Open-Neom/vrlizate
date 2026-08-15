@@ -9,7 +9,9 @@ class MockCanvas extends Fake implements Canvas {
 
   @override
   void drawRect(Rect rect, Paint paint) {
-    operations.add('drawRect: $rect, color=${paint.color.toARGB32().toRadixString(16)}');
+    operations.add(
+      'drawRect: $rect, color=${paint.color.toARGB32().toRadixString(16)}',
+    );
   }
 
   @override
@@ -34,7 +36,9 @@ class MockCanvas extends Fake implements Canvas {
 
   @override
   void drawVertices(Vertices vertices, BlendMode blendMode, Paint paint) {
-    operations.add('drawVertices: mode=${vertices.hashCode}, blendMode=$blendMode, paintColor=${paint.color.toARGB32().toRadixString(16)}');
+    operations.add(
+      'drawVertices: mode=${vertices.hashCode}, blendMode=$blendMode, paintColor=${paint.color.toARGB32().toRadixString(16)}',
+    );
   }
 
   @override
@@ -43,7 +47,11 @@ class MockCanvas extends Fake implements Canvas {
   }
 
   @override
-  void clipRect(Rect rect, {ClipOp clipOp = ClipOp.intersect, bool doAntiAlias = true}) {
+  void clipRect(
+    Rect rect, {
+    ClipOp clipOp = ClipOp.intersect,
+    bool doAntiAlias = true,
+  }) {
     operations.add('clipRect: $rect');
   }
 }
@@ -67,9 +75,12 @@ void main() {
       renderPass.renderMono(mockCanvas, size);
 
       // Verify that background was drawn and transforms were pushed
-      expect(mockCanvas.operations, contains(
-        'drawRect: Rect.fromLTRB(0.0, 0.0, 800.0, 600.0), color=ff0a0a1a',
-      ));
+      expect(
+        mockCanvas.operations,
+        contains(
+          'drawRect: Rect.fromLTRB(0.0, 0.0, 800.0, 600.0), color=ff0a0a1a',
+        ),
+      );
       expect(mockCanvas.operations, contains('save'));
       expect(mockCanvas.operations, contains('translate: 400.0, 300.0'));
       expect(mockCanvas.operations, contains('scale: 400.0, -300.0'));
@@ -90,7 +101,11 @@ void main() {
         geometry: CubeGeometry(size: 1.0),
         material: VRMaterial(color: const Color(0xFF00FF00), opacity: 0.5),
       );
-      transparentMesh.transform.position = Vector3(0, 0, -3); // Closer to camera
+      transparentMesh.transform.position = Vector3(
+        0,
+        0,
+        -3,
+      ); // Closer to camera
 
       scene.add(opaqueMesh);
       scene.add(transparentMesh);
@@ -126,21 +141,30 @@ void main() {
       final farMesh = MeshNode(
         name: 'far_transparent',
         geometry: CubeGeometry(size: 1.0),
-        material: VRMaterial(color: const Color(0xFF0000FF), opacity: 0.5), // Blue
+        material: VRMaterial(
+          color: const Color(0xFF0000FF),
+          opacity: 0.5,
+        ), // Blue
       );
       farMesh.transform.position = Vector3(0, 0, -10);
 
       final midMesh = MeshNode(
         name: 'mid_transparent',
         geometry: CubeGeometry(size: 1.0),
-        material: VRMaterial(color: const Color(0xFF00FF00), opacity: 0.5), // Green
+        material: VRMaterial(
+          color: const Color(0xFF00FF00),
+          opacity: 0.5,
+        ), // Green
       );
       midMesh.transform.position = Vector3(0, 0, -5);
 
       final nearMesh = MeshNode(
         name: 'near_transparent',
         geometry: CubeGeometry(size: 1.0),
-        material: VRMaterial(color: const Color(0xFFFF0000), opacity: 0.5), // Red
+        material: VRMaterial(
+          color: const Color(0xFFFF0000),
+          opacity: 0.5,
+        ), // Red
       );
       nearMesh.transform.position = Vector3(0, 0, -2);
 
@@ -201,10 +225,21 @@ void main() {
       renderPass.renderStereo(mockCanvas, size);
 
       // Should clip left side, render, clip right side, render, draw black divider line
-      expect(mockCanvas.operations, contains('clipRect: Rect.fromLTRB(0.0, 0.0, 400.0, 600.0)'));
-      expect(mockCanvas.operations, contains('clipRect: Rect.fromLTRB(400.0, 0.0, 800.0, 600.0)'));
+      expect(
+        mockCanvas.operations,
+        contains('clipRect: Rect.fromLTRB(0.0, 0.0, 400.0, 600.0)'),
+      );
+      expect(
+        mockCanvas.operations,
+        contains('clipRect: Rect.fromLTRB(400.0, 0.0, 800.0, 600.0)'),
+      );
       expect(mockCanvas.operations, contains('translate: 400.0, 0.0'));
-      expect(mockCanvas.operations, contains('drawRect: Rect.fromLTRB(398.0, 0.0, 402.0, 600.0), color=ff000000'));
+      expect(
+        mockCanvas.operations,
+        contains(
+          'drawRect: Rect.fromLTRB(398.0, 0.0, 402.0, 600.0), color=ff000000',
+        ),
+      );
     });
 
     test('lens barrel distortion mathematically warps vertex projections', () {
@@ -213,7 +248,11 @@ void main() {
         geometry: CubeGeometry(size: 1.0),
         material: VRMaterial(color: const Color(0xFF00FF00)),
       );
-      testMesh.transform.position = Vector3(1, 1, -5); // Offset from center to ensure radial warping
+      testMesh.transform.position = Vector3(
+        1,
+        1,
+        -5,
+      ); // Offset from center to ensure radial warping
       scene.add(testMesh);
       scene.update(0.01);
 
@@ -233,7 +272,10 @@ void main() {
       // 3. Enable radial barrel distortion
       mockCanvas.operations.clear();
       renderPass.enableLensDistortion = true;
-      renderPass.distortionCoefficients = const [0.44, 0.15]; // cardboard coefficients
+      renderPass.distortionCoefficients = const [
+        0.44,
+        0.15,
+      ]; // cardboard coefficients
       renderPass.renderMono(mockCanvas, const Size(800, 600));
 
       // Global static field should be automatically cleared inside try-finally block!

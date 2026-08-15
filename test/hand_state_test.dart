@@ -104,26 +104,29 @@ void main() {
       final hand = HandState(hand: ControllerHand.left, tracked: true);
       hand.joints[HandJoint.palm] = Vector3(0, 0, 0);
       hand.joints[HandJoint.thumbTip] = Vector3(0.06, 0.06, 0); // Extended!
-      hand.joints[HandJoint.indexTip] = Vector3(0.03, 0, 0);   // Curled
-      hand.joints[HandJoint.middleTip] = Vector3(0, 0.03, 0);  // Curled
-      hand.joints[HandJoint.ringTip] = Vector3(-0.03, 0, 0);   // Curled
+      hand.joints[HandJoint.indexTip] = Vector3(0.03, 0, 0); // Curled
+      hand.joints[HandJoint.middleTip] = Vector3(0, 0.03, 0); // Curled
+      hand.joints[HandJoint.ringTip] = Vector3(-0.03, 0, 0); // Curled
       hand.joints[HandJoint.littleTip] = Vector3(0, -0.03, 0); // Curled
 
       expect(hand.isThumbsUp, isTrue);
     });
 
-    test('victory detected when index and middle extended and others curled', () {
-      final hand = HandState(hand: ControllerHand.left, tracked: true);
-      hand.joints[HandJoint.palm] = Vector3(0, 0, 0);
-      hand.joints[HandJoint.indexTip] = Vector3(0.08, 0.08, 0);  // Extended!
-      hand.joints[HandJoint.middleTip] = Vector3(0, 0.09, 0);     // Extended!
-      hand.joints[HandJoint.thumbTip] = Vector3(0.03, 0, 0);      // Curled
-      hand.joints[HandJoint.ringTip] = Vector3(-0.03, 0, 0);      // Curled
-      hand.joints[HandJoint.littleTip] = Vector3(0, -0.03, 0);    // Curled
+    test(
+      'victory detected when index and middle extended and others curled',
+      () {
+        final hand = HandState(hand: ControllerHand.left, tracked: true);
+        hand.joints[HandJoint.palm] = Vector3(0, 0, 0);
+        hand.joints[HandJoint.indexTip] = Vector3(0.08, 0.08, 0); // Extended!
+        hand.joints[HandJoint.middleTip] = Vector3(0, 0.09, 0); // Extended!
+        hand.joints[HandJoint.thumbTip] = Vector3(0.03, 0, 0); // Curled
+        hand.joints[HandJoint.ringTip] = Vector3(-0.03, 0, 0); // Curled
+        hand.joints[HandJoint.littleTip] = Vector3(0, -0.03, 0); // Curled
 
-      expect(hand.isVictory, isTrue);
-      expect(hand.isFlatHand, isFalse);
-    });
+        expect(hand.isVictory, isTrue);
+        expect(hand.isFlatHand, isFalse);
+      },
+    );
 
     test('orientations can be stored and retrieved', () {
       final hand = HandState(hand: ControllerHand.left, tracked: true);

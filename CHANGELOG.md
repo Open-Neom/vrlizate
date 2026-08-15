@@ -9,6 +9,7 @@
 - **`VREngine.enableDesktopInput()`**: one-call integration; locomotion updates run automatically in the engine tick.
 
 ### Fixed
+- **WASM Compatibility**: `dart:isolate` is now behind a conditional import (`BackgroundIsolate` — real implementation on VM/native, no-op stub on web/WASM). The head-tracking sensor fusion and WiFi CSI processing isolate entry points moved to the platform-specific library. The package is now fully WASM-ready, achieving platform support 6/6 on pub.dev.
 - **Group Node AABB Culling Bug (Raycast Silently Broken)**: `Node.worldAabb` for group nodes was a phantom ±0.5m box at the node's position that did NOT include children. The `Raycaster`'s broad-phase pruned entire subtrees when the ray missed that box — any node farther than 0.5m from its parent's origin could never be raycast (gaze selection, mouse picking). `worldAabb` is now a cached union of the node's own bounds and all descendants (invalidated upward on any transform/hierarchy change), while self-hits, physics, and frustum culling use the new `ownWorldAabb` (own geometry only, preserving previous semantics).
 
 ## 1.6.0 — 2026-08-06

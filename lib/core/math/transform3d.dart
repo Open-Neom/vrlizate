@@ -11,9 +11,9 @@ class Transform3D {
   bool _dirty = true;
 
   Transform3D({Vector3? position, Quaternion? rotation, Vector3? scale})
-      : _position = position ?? Vector3.zero(),
-        _rotation = rotation ?? Quaternion.identity(),
-        _scale = scale ?? Vector3(1, 1, 1);
+    : _position = position ?? Vector3.zero(),
+      _rotation = rotation ?? Quaternion.identity(),
+      _scale = scale ?? Vector3(1, 1, 1);
 
   Vector3 get position => _position;
   set position(Vector3 v) {
@@ -89,8 +89,8 @@ class Transform3D {
   }
 
   Transform3D clone() => Transform3D(
-        position: _position.clone(),
-        rotation: _rotation.clone(),
-        scale: _scale.clone(),
-      );
+    position: _position.clone(),
+    rotation: _rotation.clone(),
+    scale: _scale.clone(),
+  );
 }

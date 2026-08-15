@@ -85,7 +85,14 @@ class DepthDisplacedGeometry extends Geometry {
     required this.depthMap,
     this.maxDisplacement = 1.0,
   }) : super(
-         vertices: _buildVertices(widthSegments, heightSegments, width, height, depthMap, maxDisplacement),
+         vertices: _buildVertices(
+           widthSegments,
+           heightSegments,
+           width,
+           height,
+           depthMap,
+           maxDisplacement,
+         ),
          indices: _buildIndices(widthSegments, heightSegments),
        );
 
@@ -104,11 +111,11 @@ class DepthDisplacedGeometry extends Geometry {
       for (var x = 0; x <= wSegs; x++) {
         final u = x / wSegs;
         final posX = (u - 0.5) * w;
-        
+
         final idx = y * (wSegs + 1) + x;
         final depth = idx < depths.length ? depths[idx] : 0.0;
         final posZ = depth * maxDisp; // Offset along depth axis
-        
+
         verts.add(Vector3(posX, posY, posZ));
       }
     }

@@ -10,7 +10,7 @@ class HologramMeshNode extends LitMeshNode {
   double scanLineSpacing;
   double glitchFrequency;
   Color hologramColor;
-  
+
   static double time = 0.0; // Global time tick updated by engine/demo
 
   Size viewportSize;
@@ -38,11 +38,12 @@ class HologramMeshNode extends LitMeshNode {
 
     // Calculate time-based flickering
     final flicker = 0.7 + 0.3 * sin(time * flickerSpeed);
-    
+
     // Check for random glitches
     final random = Random();
-    final isGlitching = random.nextDouble() < glitchFrequency && (sin(time * 30).abs() > 0.7);
-    
+    final isGlitching =
+        random.nextDouble() < glitchFrequency && (sin(time * 30).abs() > 0.7);
+
     // Save original transform parameters
     final originalScale = transform.scale.clone();
     final originalPosition = transform.position.clone();
@@ -58,11 +59,13 @@ class HologramMeshNode extends LitMeshNode {
       transform.scale = originalScale;
       if (isGlitching) {
         // Apply sci-fi vertex/position glitch offset
-        transform.position = originalPosition + Vector3(
-          (random.nextDouble() - 0.5) * 0.03,
-          (random.nextDouble() - 0.5) * 0.01,
-          (random.nextDouble() - 0.5) * 0.03,
-        );
+        transform.position =
+            originalPosition +
+            Vector3(
+              (random.nextDouble() - 0.5) * 0.03,
+              (random.nextDouble() - 0.5) * 0.01,
+              (random.nextDouble() - 0.5) * 0.03,
+            );
       }
       material.opacity = originalOpacity * flicker;
       super.onRender(canvas, viewProjection);
@@ -77,7 +80,6 @@ class HologramMeshNode extends LitMeshNode {
 
       // --- Overlay scanline effects directly over screen projection space ---
       _drawScanlines(canvas, viewProjection, viewportSize: viewportSize);
-
     } finally {
       // Always restore original transform parameters
       transform.scale = originalScale;
@@ -86,7 +88,11 @@ class HologramMeshNode extends LitMeshNode {
     }
   }
 
-  void _drawScanlines(Canvas canvas, Matrix4 viewProjection, {Size viewportSize = const Size(800, 600)}) {
+  void _drawScanlines(
+    Canvas canvas,
+    Matrix4 viewProjection, {
+    Size viewportSize = const Size(800, 600),
+  }) {
     final mvp = viewProjection * worldMatrix;
     double minY = double.infinity;
     double maxY = -double.infinity;
@@ -98,7 +104,8 @@ class HologramMeshNode extends LitMeshNode {
 
     for (final v in geometry.vertices) {
       final clip = mvp.transformed3(v);
-      final w = mvp.storage[3] * v.x +
+      final w =
+          mvp.storage[3] * v.x +
           mvp.storage[7] * v.y +
           mvp.storage[11] * v.z +
           mvp.storage[15];
@@ -106,7 +113,7 @@ class HologramMeshNode extends LitMeshNode {
 
       final ndcX = clip.x / w;
       final ndcY = clip.y / w;
-      
+
       // Dynamic conversion from NDC to screen coordinates
       final x = (ndcX + 1.0) * halfWidth;
       final y = (1.0 - ndcY) * halfHeight;

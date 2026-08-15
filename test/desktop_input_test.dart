@@ -1,21 +1,19 @@
-import 'dart:ui';
-
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:vrlizate/vrlizate.dart';
 
 KeyDownEvent _keyDown(LogicalKeyboardKey key) => KeyDownEvent(
-      physicalKey: PhysicalKeyboardKey.keyW,
-      logicalKey: key,
-      timeStamp: Duration.zero,
-    );
+  physicalKey: PhysicalKeyboardKey.keyW,
+  logicalKey: key,
+  timeStamp: Duration.zero,
+);
 
 KeyUpEvent _keyUp(LogicalKeyboardKey key) => KeyUpEvent(
-      physicalKey: PhysicalKeyboardKey.keyW,
-      logicalKey: key,
-      timeStamp: Duration.zero,
-    );
+  physicalKey: PhysicalKeyboardKey.keyW,
+  logicalKey: key,
+  timeStamp: Duration.zero,
+);
 
 void main() {
   group('DesktopInputDriver', () {
@@ -34,8 +32,11 @@ void main() {
       // Drag 100px to the right -> yaw -0.35 rad (same sign as touch fallback)
       driver.handlePointerDelta(const Offset(100, 0));
 
-      final expected =
-          Quaternion.euler(-100 * 0.0035, 0, 0).rotated(Vector3(0, 0, -1));
+      final expected = Quaternion.euler(
+        -100 * 0.0035,
+        0,
+        0,
+      ).rotated(Vector3(0, 0, -1));
       final fwd = rig.headTransform.forward;
       expect(fwd.x, closeTo(expected.x, 1e-6));
       expect(fwd.y, closeTo(expected.y, 1e-6));

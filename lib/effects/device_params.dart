@@ -92,7 +92,9 @@ class DeviceParams {
     // Check if official Cardboard base64 protobuf ?p= parameter is present
     if (params.containsKey('p')) {
       try {
-        final rawBase64 = params['p']!.replaceAll('-', '+').replaceAll('_', '/');
+        final rawBase64 = params['p']!
+            .replaceAll('-', '+')
+            .replaceAll('_', '/');
         final padded = rawBase64.padRight((rawBase64.length + 3) & ~3, '=');
         final bytes = base64Decode(padded);
         return _parseProtobufCardboardParams(bytes);
@@ -143,7 +145,10 @@ class DeviceParams {
         }
 
         if (offset + len <= bytes.length) {
-          final stringVal = utf8.decode(bytes.sublist(offset, offset + len), allowMalformed: true);
+          final stringVal = utf8.decode(
+            bytes.sublist(offset, offset + len),
+            allowMalformed: true,
+          );
           if (fieldNumber == 1) vendor = stringVal;
           if (fieldNumber == 2) model = stringVal;
           offset += len;
@@ -151,7 +156,11 @@ class DeviceParams {
       } else if (wireType == 5) {
         // 32-bit float
         if (offset + 4 <= bytes.length) {
-          final floatVal = ByteData.sublistView(bytes, offset, offset + 4).getFloat32(0, Endian.little);
+          final floatVal = ByteData.sublistView(
+            bytes,
+            offset,
+            offset + 4,
+          ).getFloat32(0, Endian.little);
           offset += 4;
           if (fieldNumber == 3) screenToLens = floatVal;
           if (fieldNumber == 4) interLens = floatVal;
@@ -173,7 +182,9 @@ class DeviceParams {
       screenToLensDistance: screenToLens,
       interLensDistance: interLens,
       trayToLensDistance: trayToLens,
-      distortionCoefficients: distortion.isNotEmpty ? distortion : const [0.34, 0.55],
+      distortionCoefficients: distortion.isNotEmpty
+          ? distortion
+          : const [0.34, 0.55],
     );
   }
 }

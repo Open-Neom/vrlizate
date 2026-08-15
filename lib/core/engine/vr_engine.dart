@@ -43,8 +43,8 @@ class VREngine extends ChangeNotifier {
   void Function(double dt)? onUpdate;
 
   VREngine({Scene? scene, CameraRig? cameraRig})
-      : scene = scene ?? Scene(),
-        cameraRig = cameraRig ?? CameraRig() {
+    : scene = scene ?? Scene(),
+      cameraRig = cameraRig ?? CameraRig() {
     renderPass = RenderPass(scene: this.scene, cameraRig: this.cameraRig);
   }
 
@@ -89,8 +89,10 @@ class VREngine extends ChangeNotifier {
 
   /// Enables gaze-based interaction pointer (look-to-select).
   void enableGazePointer({double dwellDuration = 2.0}) {
-    gazePointer =
-        GazePointer(cameraRig: cameraRig, dwellDuration: dwellDuration);
+    gazePointer = GazePointer(
+      cameraRig: cameraRig,
+      dwellDuration: dwellDuration,
+    );
   }
 
   /// Disables the gaze pointer.
@@ -146,8 +148,11 @@ class VREngine extends ChangeNotifier {
     final currentRotation = cameraRig.rotation;
     if (_frameTime > 18.0 && _lastCameraRotation != null) {
       final delta = currentRotation * _lastCameraRotation!.inverted();
-      final atwMatrix =
-          Matrix4.compose(Vector3.zero(), delta, Vector3.all(1.0));
+      final atwMatrix = Matrix4.compose(
+        Vector3.zero(),
+        delta,
+        Vector3.all(1.0),
+      );
       renderPass.leftAtwMatrix = atwMatrix;
       renderPass.rightAtwMatrix = atwMatrix;
       renderPass.useATWFallback = true;
@@ -209,8 +214,8 @@ class VREnginePainter extends CustomPainter {
   final bool _stereo;
 
   VREnginePainter._(this._engine, {required bool stereo})
-      : _stereo = stereo,
-        super(repaint: _engine);
+    : _stereo = stereo,
+      super(repaint: _engine);
 
   @override
   void paint(Canvas canvas, Size size) {

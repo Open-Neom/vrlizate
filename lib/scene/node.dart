@@ -22,7 +22,7 @@ class Node {
   bool _worldAabbDirty = true;
 
   Node({this.name = '', Transform3D? transform})
-      : transform = transform ?? Transform3D();
+    : transform = transform ?? Transform3D();
 
   // ─── Hierarchy ──────────────────────
 

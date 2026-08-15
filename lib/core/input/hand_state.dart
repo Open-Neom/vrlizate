@@ -51,8 +51,8 @@ class HandState {
     Map<HandJoint, Vector3>? joints,
     Map<HandJoint, Quaternion>? orientations,
     this.tracked = false,
-  })  : joints = joints ?? {},
-        orientations = orientations ?? {};
+  }) : joints = joints ?? {},
+       orientations = orientations ?? {};
 
   Vector3? joint(HandJoint j) => joints[j];
   Quaternion? jointOrientation(HandJoint j) => orientations[j];
@@ -186,7 +186,9 @@ class HandState {
     final middle = joints[HandJoint.middleTip];
     if (palm == null || index == null || middle == null) return false;
 
-    if ((index - palm).length < 0.075 || (middle - palm).length < 0.075) return false;
+    if ((index - palm).length < 0.075 || (middle - palm).length < 0.075) {
+      return false;
+    }
 
     final curledTips = [
       HandJoint.thumbTip,
@@ -213,7 +215,10 @@ class HandState {
 /// Converts MediaPipe / MLKit 3D landmark coordinates to an OpenXR [HandState].
 class MediaPipeHandDriver {
   /// Maps a list of 21 MediaPipe 3D normalized landmark points [x, y, z] to [HandState].
-  static void updateHandFromLandmarks(HandState state, List<Vector3> landmarks) {
+  static void updateHandFromLandmarks(
+    HandState state,
+    List<Vector3> landmarks,
+  ) {
     if (landmarks.length < 21) {
       state.tracked = false;
       return;
@@ -223,7 +228,7 @@ class MediaPipeHandDriver {
 
     // MediaPipe 21 Landmark mapping -> OpenXR 26 Joints
     state.joints[HandJoint.wrist] = landmarks[0];
-    
+
     // Thumb
     state.joints[HandJoint.thumbMetacarpal] = landmarks[1];
     state.joints[HandJoint.thumbProximal] = landmarks[2];

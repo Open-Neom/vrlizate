@@ -20,13 +20,7 @@ void main() {
   runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: _App()));
 }
 
-enum DemoType {
-  grid,
-  physics,
-  space,
-  cinema,
-  radar,
-}
+enum DemoType { grid, physics, space, cinema, radar }
 
 // ═══════════════════════════════════════════════════════════════
 // Zone detection constants (from Meta/Google VR research)
@@ -210,19 +204,23 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
       label: 'Lens Dist: $distState',
       position: Vector3(0.5, -0.08, 0),
       onPress: () {
-        engine.renderPass.enableLensDistortion = !engine.renderPass.enableLensDistortion;
+        engine.renderPass.enableLensDistortion =
+            !engine.renderPass.enableLensDistortion;
         _rebuildAll();
       },
     );
 
     // Toggle Chromatic Aberration Button
-    final chromaState = engine.renderPass.enableChromaticAberration ? 'ON' : 'OFF';
+    final chromaState = engine.renderPass.enableChromaticAberration
+        ? 'ON'
+        : 'OFF';
     _createDashboardButton(
       dashboardRoot,
       label: 'Chromatic: $chromaState',
       position: Vector3(-0.5, -0.48, 0),
       onPress: () {
-        engine.renderPass.enableChromaticAberration = !engine.renderPass.enableChromaticAberration;
+        engine.renderPass.enableChromaticAberration =
+            !engine.renderPass.enableChromaticAberration;
         _rebuildAll();
       },
     );
@@ -309,8 +307,9 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
 
     // Update real-time performance indicators on the dashboard
     if (_statsLabel != null) {
-      _statsLabel!.text = 'FPS: ${engine.fps.toStringAsFixed(1)} | Frame: ${engine.frameTimeMs.toStringAsFixed(1)}ms\n'
-                          'Rendered Nodes: ${engine.renderedCount} | Culled: ${engine.culledCount}';
+      _statsLabel!.text =
+          'FPS: ${engine.fps.toStringAsFixed(1)} | Frame: ${engine.frameTimeMs.toStringAsFixed(1)}ms\n'
+          'Rendered Nodes: ${engine.renderedCount} | Culled: ${engine.culledCount}';
     }
   }
 

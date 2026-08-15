@@ -36,8 +36,8 @@ class RigidBody {
     this.isStatic = false,
     this.useGravity = true,
     this.isSleeping = false,
-  })  : velocity = velocity ?? Vector3.zero(),
-        angularVelocity = angularVelocity ?? Vector3.zero();
+  }) : velocity = velocity ?? Vector3.zero(),
+       angularVelocity = angularVelocity ?? Vector3.zero();
 
   double get inverseMass => isStatic ? 0 : 1 / mass;
 

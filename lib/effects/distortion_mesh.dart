@@ -159,7 +159,9 @@ class DistortionMesh {
 
     if (enableChromaticAberration) {
       // Map Green (neutral), Red (expanded 1.008), and Blue (contracted 0.992) texture coords
-      final greenCoords = originalPoints.map((p) => _toScreen(p, imgW, imgH)).toList();
+      final greenCoords = originalPoints
+          .map((p) => _toScreen(p, imgW, imgH))
+          .toList();
 
       final redCoords = originalPoints.map((p) {
         final shifted = Offset(p.dx * 1.008, p.dy * 1.008);
@@ -181,10 +183,26 @@ class DistortionMesh {
       final redPaint = Paint()
         ..shader = shader
         ..colorFilter = const ColorFilter.matrix([
-          1, 0, 0, 0, 0,
-          0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0,
-          0, 0, 0, 1, 0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
         ]);
       canvas.drawVertices(redVertices, BlendMode.srcOver, redPaint);
 
@@ -199,10 +217,26 @@ class DistortionMesh {
         ..shader = shader
         ..blendMode = BlendMode.plus
         ..colorFilter = const ColorFilter.matrix([
-          0, 0, 0, 0, 0,
-          0, 1, 0, 0, 0,
-          0, 0, 0, 0, 0,
-          0, 0, 0, 1, 0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
         ]);
       canvas.drawVertices(greenVertices, BlendMode.srcOver, greenPaint);
 
@@ -217,15 +251,33 @@ class DistortionMesh {
         ..shader = shader
         ..blendMode = BlendMode.plus
         ..colorFilter = const ColorFilter.matrix([
-          0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0,
-          0, 0, 1, 0, 0,
-          0, 0, 0, 1, 0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
         ]);
       canvas.drawVertices(blueVertices, BlendMode.srcOver, bluePaint);
     } else {
       // Standard single-pass render without aberration correction
-      final textureCoords = originalPoints.map((p) => _toScreen(p, imgW, imgH)).toList();
+      final textureCoords = originalPoints
+          .map((p) => _toScreen(p, imgW, imgH))
+          .toList();
 
       final vertices = Vertices(
         VertexMode.triangles,

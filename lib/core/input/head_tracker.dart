@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:isolate';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vector_math/vector_math.dart';
+
+import 'background_isolate.dart';
 
 /// Interface for anything that can receive rotation input.
 abstract class RotationTarget {
@@ -61,9 +62,9 @@ class HeadTracker {
 
   DateTime? _lastTimestamp;
 
-  Isolate? _isolate;
-  ReceivePort? _receivePort;
-  SendPort? _isolateSendPort;
+  BackgroundIsolate? _fusionIsolate;
+  // The worker's SendPort (typed dynamically to stay WASM-compatible).
+  dynamic _isolateSendPort;
 
   final Stream<GyroscopeEvent>? gyroscopeStreamOverride;
   final Stream<AccelerometerEvent>? accelerometerStreamOverride;
@@ -96,106 +97,6 @@ class HeadTracker {
     );
   }
 
-  /// Entry point for the background Isolate executing sensor fusion
-  static void _isolateSensorFusion(SendPort mainSendPort) {
-    final receivePort = ReceivePort();
-    mainSendPort.send(receivePort.sendPort);
-
-    double yawFused = 0.0;
-    double pitchFused = 0.0;
-    double? prevYawFused;
-    double? prevPitchFused;
-
-    double accelX = 0.0;
-    double accelY = 0.0;
-    double accelZ = 9.8;
-
-    double offsetX = 0.0;
-    double offsetY = 0.0;
-    double alpha = 0.98;
-    double sensitivity = 1.0;
-    double predictionMs = 15.0;
-
-    DateTime? lastTimestamp;
-
-    receivePort.listen((message) {
-      if (message is List) {
-        final type = message[0] as int;
-        if (type == 0) {
-          // Configuration: [0, alpha, sensitivity, predictionMs, offsetX, offsetY]
-          alpha = (message[1] as num).toDouble();
-          sensitivity = (message[2] as num).toDouble();
-          predictionMs = (message[3] as num).toDouble();
-          offsetX = (message[4] as num).toDouble();
-          offsetY = (message[5] as num).toDouble();
-        } else if (type == 1) {
-          // Accelerometer: [1, x, y, z]
-          accelX = (message[1] as num).toDouble();
-          accelY = (message[2] as num).toDouble();
-          accelZ = (message[3] as num).toDouble();
-        } else if (type == 2) {
-          // Gyroscope: [2, x, y, z]
-          final gx = (message[1] as num).toDouble();
-          final gy = (message[2] as num).toDouble();
-
-          // Dynamic Auto-Calibrating Anti-Drift:
-          // If the gyroscope velocity is extremely low, adaptively adjust the offsets
-          final double magnitude = sqrt(gx * gx + gy * gy);
-          if (magnitude < 0.015) {
-            offsetX = offsetX * 0.995 + gx * 0.005;
-            offsetY = offsetY * 0.995 + gy * 0.005;
-          }
-
-          final adjustedX = gx - offsetX;
-          final adjustedY = gy - offsetY;
-
-          // Gravity reference for the pitch channel (device-Y rotation in
-          // landscape): gravity tilts between the X and Z device axes.
-          double gravityPitch() =>
-              atan2(-accelX, sqrt(accelY * accelY + accelZ * accelZ));
-
-          final now = DateTime.now();
-          if (lastTimestamp == null) {
-            lastTimestamp = now;
-            yawFused = 0.0;
-            pitchFused = gravityPitch();
-            prevYawFused = yawFused;
-            prevPitchFused = pitchFused;
-            return;
-          }
-
-          final dt = now.difference(lastTimestamp!).inMicroseconds / 1000000.0;
-          lastTimestamp = now;
-
-          // Yaw (device-X rotation in landscape): gravity does NOT change
-          // under pure yaw, so there is no absolute reference — integrate
-          // the gyroscope directly (bias is handled by the anti-drift offsets).
-          yawFused += adjustedX * dt;
-
-          // Pitch: complementary filter, gyro integration anchored to gravity.
-          pitchFused = alpha * (pitchFused + adjustedY * dt) +
-              (1 - alpha) * gravityPitch();
-
-          // Latency extrapolation prediction
-          final predictionTime = predictionMs / 1000.0;
-          final predictedYaw = yawFused + adjustedX * predictionTime;
-          final predictedPitch = pitchFused + adjustedY * predictionTime;
-
-          final dYaw = predictedYaw - (prevYawFused ?? predictedYaw);
-          final dPitch = predictedPitch - (prevPitchFused ?? predictedPitch);
-
-          prevYawFused = predictedYaw;
-          prevPitchFused = predictedPitch;
-
-          mainSendPort.send([
-            -dYaw * sensitivity,
-            dPitch * sensitivity,
-          ]);
-        }
-      }
-    });
-  }
-
   /// Starts gyroscope tracking. Calls [calibrate] automatically.
   void start() {
     stop();
@@ -224,19 +125,18 @@ class HeadTracker {
       // Main-thread Web/Sync Fallback
       _accelSubscription =
           (accelerometerStreamOverride ?? accelerometerEventStream()).listen((
-        event,
-      ) {
-        _accelX = event.x;
-        _accelY = event.y;
-        _accelZ = event.z;
+            event,
+          ) {
+            _accelX = event.x;
+            _accelY = event.y;
+            _accelZ = event.z;
 
-        if (!isGyroscopeActive) {
-          _updateFromAccelerometerOnly(event.x, event.y, event.z);
-        }
-      });
+            if (!isGyroscopeActive) {
+              _updateFromAccelerometerOnly(event.x, event.y, event.z);
+            }
+          });
 
-      _subscription =
-          (gyroscopeStreamOverride ?? gyroscopeEventStream()).listen((
+      _subscription = (gyroscopeStreamOverride ?? gyroscopeEventStream()).listen((
         event,
       ) {
         _gyroEventsCount++;
@@ -284,7 +184,8 @@ class HeadTracker {
         _yawFused += adjustedX * dt;
 
         // Pitch: complementary filter, gyro integration anchored to gravity.
-        _pitchFused = _alpha * (_pitchFused + adjustedY * dt) +
+        _pitchFused =
+            _alpha * (_pitchFused + adjustedY * dt) +
             (1 - _alpha) * gravityPitch();
 
         final predictionTime = predictionMs / 1000.0;
@@ -303,15 +204,18 @@ class HeadTracker {
     }
 
     // Native Platform: Background Isolate Setup
-    _receivePort = ReceivePort();
-    Isolate.spawn(_isolateSensorFusion, _receivePort!.sendPort).then((iso) {
-      _isolate = iso;
-    });
+    final fusionIsolate = BackgroundIsolate.create();
+    _fusionIsolate = fusionIsolate;
 
-    _receivePort!.listen((message) {
-      if (message is SendPort) {
+    fusionIsolate.messages.listen((message) {
+      if (message is List) {
+        final dYaw = (message[0] as num).toDouble();
+        final dPitch = (message[1] as num).toDouble();
+        target.rotate(dYaw, dPitch);
+      } else {
+        // First message: the worker's SendPort (two-way channel)
         _isolateSendPort = message;
-        _isolateSendPort!.send([
+        _isolateSendPort.send([
           0,
           _alpha,
           sensitivity,
@@ -319,23 +223,21 @@ class HeadTracker {
           _offsetX,
           _offsetY,
         ]);
-      } else if (message is List) {
-        final dYaw = message[0] as double;
-        final dPitch = message[1] as double;
-        target.rotate(dYaw, dPitch);
       }
     });
+
+    fusionIsolate.start(headTrackingFusionEntry);
 
     _accelSubscription =
         (accelerometerStreamOverride ?? accelerometerEventStream()).listen((
-      event,
-    ) {
-      _isolateSendPort?.send([1, event.x, event.y, event.z]);
+          event,
+        ) {
+          _isolateSendPort?.send([1, event.x, event.y, event.z]);
 
-      if (!isGyroscopeActive) {
-        _updateFromAccelerometerOnly(event.x, event.y, event.z);
-      }
-    });
+          if (!isGyroscopeActive) {
+            _updateFromAccelerometerOnly(event.x, event.y, event.z);
+          }
+        });
 
     _subscription = (gyroscopeStreamOverride ?? gyroscopeEventStream()).listen((
       event,
@@ -412,10 +314,8 @@ class HeadTracker {
     _accelSubscription?.cancel();
     _accelSubscription = null;
 
-    _isolate?.kill(priority: Isolate.beforeNextEvent);
-    _isolate = null;
-    _receivePort?.close();
-    _receivePort = null;
+    _fusionIsolate?.dispose();
+    _fusionIsolate = null;
     _isolateSendPort = null;
   }
 
@@ -456,8 +356,6 @@ class FaceTrackerDriver {
 
   /// Calculates the current face-tracked holographic projection matrix for the rig.
   Matrix4 get projectionMatrix {
-    return cameraRig.faceTrackedProjectionMatrix(
-      eyePosRelative: facePosition,
-    );
+    return cameraRig.faceTrackedProjectionMatrix(eyePosRelative: facePosition);
   }
 }

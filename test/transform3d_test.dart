@@ -83,23 +83,25 @@ void main() {
       expect(forward.z, lessThan(0));
     });
 
-    test('lookAt looking down preserves full direction (regression: Y-flip)',
-        () {
-      // Regression: transposing makeViewMatrix's rotation flipped the Y
-      // component of forward — cameras looking down ended up looking up
-      // and the whole scene was frustum-culled (black screen).
-      final eye = Vector3(0, 3.0, 4.5);
-      final target = Vector3(0, 1.0, 0);
-      final t = Transform3D(position: eye.clone());
-      t.lookAt(target);
+    test(
+      'lookAt looking down preserves full direction (regression: Y-flip)',
+      () {
+        // Regression: transposing makeViewMatrix's rotation flipped the Y
+        // component of forward — cameras looking down ended up looking up
+        // and the whole scene was frustum-culled (black screen).
+        final eye = Vector3(0, 3.0, 4.5);
+        final target = Vector3(0, 1.0, 0);
+        final t = Transform3D(position: eye.clone());
+        t.lookAt(target);
 
-      final expected = (target - eye).normalized();
-      final forward = t.forward;
-      expect(forward.x, closeTo(expected.x, 1e-6));
-      expect(forward.y, closeTo(expected.y, 1e-6));
-      expect(forward.z, closeTo(expected.z, 1e-6));
-      expect(forward.y, lessThan(0)); // must look DOWN
-    });
+        final expected = (target - eye).normalized();
+        final forward = t.forward;
+        expect(forward.x, closeTo(expected.x, 1e-6));
+        expect(forward.y, closeTo(expected.y, 1e-6));
+        expect(forward.z, closeTo(expected.z, 1e-6));
+        expect(forward.y, lessThan(0)); // must look DOWN
+      },
+    );
 
     test('clone produces independent copy', () {
       final t = Transform3D(position: Vector3(1, 2, 3));
