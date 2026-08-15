@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.8.0 — 2026-08-14
+
+### Added — Joystick-Free Input Stack (5 channels, all optional)
+- **Adaptive Gaze Dwell (`GazePointer`)**: repeated selections of the same target accelerate dwell (configurable `dwellAcceleration`, clamped at `minDwellDuration`); `gazeGracePeriod` tolerates brief gaze slips without losing progress; `onDwellProgress` callback; richer reticle with white→accent progress ring, quarter tick marks, hover halo, and selection flash; `resetAdaptation()` for scene changes.
+- **Walk-in-Place Locomotion (`WalkInPlaceDetector` + `WalkInPlaceLocomotion`)**: VR-Step-style step detection from the accelerometer — runtime gravity estimation (orientation-agnostic), high-pass vertical bob signal, peak detection with refractory period, cadence tracking (steps/min) over a sliding window. Locomotion maps cadence to head-relative ground-plane velocity with smooth decay. Move through virtual spaces inside a closed viewer with no joystick.
+- **Camera Hand-Tracking Pipeline (`CameraHandTrackingDriver`)**: connects real camera ML frames (`HandLandmarkFrame` from MediaPipe Hand Landmarker / ML Kit, fed by the host app) to the existing 26-joint OpenXR `HandState` — handedness routing, normalized→metric reprojection into a configurable tracking volume, per-landmark **One Euro filtering** (jitter-free when still, lag-free when fast), confidence gating, and tracking-loss timeout.
+- **Hand Gesture Recognition (`HandGestureRecognizer`)**: debounced semantic gestures from `HandState` poses — pinch start/end edges (the VR "click"), fist (back), flat hand (stop), point (aim ray), thumbs up (confirm), victory — with configurable `minHoldDuration` to suppress single-frame ML false positives.
+- **Ultrasonic Gesture Channel (`UltrasonicGestureChannel`)**: FingerIO/LLAP/AudioGest-family active sonar — pure-Dart radix-2 FFT with Hann windowing, sideband Doppler imbalance analysis around a 17–20 kHz carrier, adaptive noise floor, presence (hover enter/exit) and motion (push/pull) gestures with cooldown. Works in the dark with the headset cover closed. Host app plays the tone from `generateTone()` and feeds microphone PCM.
+- **Wi-Fi RTT Room-Scale Positioning (`WifiRttPositioning`)**: IEEE 802.11mc trilateration via weighted Gauss-Newton least squares — anchor registry, freshest-measurement-per-anchor windowing, outlier rejection with re-solve, stdDev-based weighting, and smoothed position stream. Uses the public Android 9+ RTT API (host app feeds measurements); a portable alternative to CSI-based sensing, which requires rooted firmware.
+- **`InputFusion`**: unifies all channels into one `VrInputAction` stream (`SelectAction`, `BackAction`, `AimAction`, `MoveAction`, `ConfirmAction`) with priority resolution — hand pinch supersedes in-progress gaze dwell, ultrasonic push maps to select/confirm, pull to back, walk-in-place cadence to continuous movement — plus cross-channel select cooldown.
+
+### Compatibility
+- All new drivers are transport-agnostic pure Dart: no new plugin dependencies; camera, microphone, speaker, and Wi-Fi RTT remain host-app responsibilities, keeping the package WASM-ready and platform 6/6.
+
 ## 1.7.0 — 2026-08-14
 
 ### Added

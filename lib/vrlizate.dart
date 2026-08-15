@@ -34,7 +34,11 @@ export 'core/input/controller_state.dart';
 export 'core/input/desktop_input.dart';
 export 'core/input/gaze_pointer.dart';
 export 'core/input/hand_state.dart';
+export 'core/input/hand_tracking_driver.dart';
 export 'core/input/head_tracker.dart';
+export 'core/input/input_fusion.dart';
+export 'core/input/ultrasonic_gesture.dart';
+export 'core/input/wifi_rtt.dart';
 export 'core/input/wifi_sensing.dart';
 
 // ============ Core — Projection ============
@@ -84,6 +88,7 @@ export 'interaction/raycast.dart';
 export 'interaction/locomotion/fly.dart';
 export 'interaction/locomotion/teleport.dart';
 export 'interaction/locomotion/walk.dart';
+export 'interaction/locomotion/walk_in_place.dart';
 
 // ============ Spatial UI ============
 export 'spatial_ui/billboard.dart';
