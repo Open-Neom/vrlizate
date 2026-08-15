@@ -6,6 +6,7 @@ import 'package:vector_math/vector_math.dart';
 
 import '../../scene/scene.dart';
 import '../camera/camera_rig.dart';
+import '../input/desktop_input.dart';
 import '../input/head_tracker.dart';
 import '../input/gaze_pointer.dart';
 import '../rendering/render_pass.dart';
@@ -27,6 +28,7 @@ class VREngine extends ChangeNotifier {
   late final RenderPass renderPass;
   HeadTracker? headTracker;
   GazePointer? gazePointer;
+  DesktopInputDriver? desktopInput;
   final Raycaster _raycaster = Raycaster();
   Quaternion? _lastCameraRotation;
 
@@ -41,8 +43,8 @@ class VREngine extends ChangeNotifier {
   void Function(double dt)? onUpdate;
 
   VREngine({Scene? scene, CameraRig? cameraRig})
-    : scene = scene ?? Scene(),
-      cameraRig = cameraRig ?? CameraRig() {
+      : scene = scene ?? Scene(),
+        cameraRig = cameraRig ?? CameraRig() {
     renderPass = RenderPass(scene: this.scene, cameraRig: this.cameraRig);
   }
 
@@ -69,7 +71,8 @@ class VREngine extends ChangeNotifier {
   }
 
   /// Enables gyroscope head tracking.
-  void enableHeadTracking({double sensitivity = 0.03}) {
+  /// [sensitivity] 1.0 (default) = true 1:1 tracking, ideal for VR.
+  void enableHeadTracking({double sensitivity = 1.0}) {
     headTracker?.dispose();
     headTracker = HeadTracker(
       target: _headTrackerCamera,
@@ -86,12 +89,36 @@ class VREngine extends ChangeNotifier {
 
   /// Enables gaze-based interaction pointer (look-to-select).
   void enableGazePointer({double dwellDuration = 2.0}) {
-    gazePointer = GazePointer(cameraRig: cameraRig, dwellDuration: dwellDuration);
+    gazePointer =
+        GazePointer(cameraRig: cameraRig, dwellDuration: dwellDuration);
   }
 
   /// Disables the gaze pointer.
   void disableGazePointer() {
     gazePointer = null;
+  }
+
+  /// Enables desktop input (mouse-look, WASD locomotion, mouse-picking).
+  /// Returns the driver so the widget layer can forward pointer/key events
+  /// (see [DesktopInputRegion]).
+  DesktopInputDriver enableDesktopInput({
+    double lookSensitivity = 0.0035,
+    double moveSpeed = 3.0,
+    double sprintMultiplier = 2.5,
+  }) {
+    desktopInput = DesktopInputDriver(
+      cameraRig: cameraRig,
+      lookSensitivity: lookSensitivity,
+      moveSpeed: moveSpeed,
+      sprintMultiplier: sprintMultiplier,
+    );
+    return desktopInput!;
+  }
+
+  /// Disables desktop input.
+  void disableDesktopInput() {
+    desktopInput?.releaseAllKeys();
+    desktopInput = null;
   }
 
   /// Exposes screen tap event (e.g. Cardboard viewer button click)
@@ -119,7 +146,8 @@ class VREngine extends ChangeNotifier {
     final currentRotation = cameraRig.rotation;
     if (_frameTime > 18.0 && _lastCameraRotation != null) {
       final delta = currentRotation * _lastCameraRotation!.inverted();
-      final atwMatrix = Matrix4.compose(Vector3.zero(), delta, Vector3.all(1.0));
+      final atwMatrix =
+          Matrix4.compose(Vector3.zero(), delta, Vector3.all(1.0));
       renderPass.leftAtwMatrix = atwMatrix;
       renderPass.rightAtwMatrix = atwMatrix;
       renderPass.useATWFallback = true;
@@ -147,6 +175,9 @@ class VREngine extends ChangeNotifier {
         }
       });
     }
+
+    // Update desktop locomotion (WASD) if active
+    desktopInput?.update(dt);
 
     // Custom update callback
     onUpdate?.call(dt);

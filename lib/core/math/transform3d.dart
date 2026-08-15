@@ -11,9 +11,9 @@ class Transform3D {
   bool _dirty = true;
 
   Transform3D({Vector3? position, Quaternion? rotation, Vector3? scale})
-    : _position = position ?? Vector3.zero(),
-      _rotation = rotation ?? Quaternion.identity(),
-      _scale = scale ?? Vector3(1, 1, 1);
+      : _position = position ?? Vector3.zero(),
+        _rotation = rotation ?? Quaternion.identity(),
+        _scale = scale ?? Vector3(1, 1, 1);
 
   Vector3 get position => _position;
   set position(Vector3 v) {
@@ -62,7 +62,11 @@ class Transform3D {
     final upDir = up ?? Vector3(0, 1, 0);
 
     final m = makeViewMatrix(_position, target, upDir);
-    _rotation = Quaternion.fromRotation(m.getRotation()..transpose());
+    // vector_math's makeViewMatrix already stores the basis vectors as
+    // matrix columns, so getRotation() IS the camera world rotation.
+    // Transposing here would flip the vertical component of the forward
+    // vector (cameras looking down ended up looking up — scene culled).
+    _rotation = Quaternion.fromRotation(m.getRotation());
     _rotation.normalize();
     _dirty = true;
   }
@@ -85,8 +89,8 @@ class Transform3D {
   }
 
   Transform3D clone() => Transform3D(
-    position: _position.clone(),
-    rotation: _rotation.clone(),
-    scale: _scale.clone(),
-  );
+        position: _position.clone(),
+        rotation: _rotation.clone(),
+        scale: _scale.clone(),
+      );
 }

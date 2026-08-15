@@ -9,7 +9,7 @@ A complete 3D/VR engine written in **pure Dart** for Flutter.
 No native plugins for rendering. No platform channels. No C++ bridge. One codebase — runs on iOS, Android, Web, macOS, Windows, and Linux.
 
 ```
-5,334 lines of Dart  |  59 source files  |  2 dependencies  |  198 tests passing
+7,627 lines of Dart  |  63 source files  |  2 dependencies  |  217 tests passing
 ```
 
 ## Why VRlizate Exists
@@ -29,7 +29,7 @@ The entry cost drops from $500 (headset) to $20 (cardboard holder). The develope
 ```yaml
 # pubspec.yaml
 dependencies:
-  vrlizate: ^1.0.0
+  vrlizate: ^1.6.0
 ```
 
 ```dart
@@ -128,7 +128,8 @@ Procedural primitives with normals and UVs:
 - **Teleport** — point-and-teleport with max distance, cancel support
 
 ### Input
-- **Head tracking** — gyroscope with auto-calibration and sensitivity control
+- **Head tracking** — gyroscope with auto-calibration and **true 1:1 tracking** (sensitivity `1.0` default); gyro-only yaw integration (no gravity noise on level phones) + gravity-anchored pitch fusion
+- **Desktop input** — mouse-look (drag), WASD + Q/E locomotion with sprint, rebindable keys, and mouse 3D picking via `DesktopInputDriver` + `DesktopInputRegion` widget (macOS/Windows/Linux)
 - **Hand tracking** — 26 joints (OpenXR standard), gesture detection:
   - Pinch (thumb-index distance)
   - Fist (all fingers curled)
@@ -225,11 +226,11 @@ Floating 3D panels, buttons, and text in world space.
 ### Treasure Hunt
 Spatial puzzle game with raycasting interaction.
 
-All examples live in `examples/`.
+All examples live in `example/`.
 
 ## Benchmarks
 
-177 tests. 100% pass rate. All benchmarks run on Apple Silicon under `flutter test`.
+217 tests. 100% pass rate. All benchmarks run on Apple Silicon under `flutter test`.
 
 ### Performance
 
@@ -280,7 +281,7 @@ All examples live in `examples/`.
 
 Run all benchmarks yourself:
 ```bash
-flutter test                        # all 177 tests
+flutter test                        # all 217 tests
 flutter test test/benchmark_*.dart  # benchmarks only
 ```
 
@@ -299,7 +300,7 @@ Full benchmark details in [BENCHMARKS.md](BENCHMARKS.md).
 | Spatial UI | Built-in | - | - | External |
 | Dependencies | **2** | varies | many | N/A |
 | Cross-platform | **6** | limited | limited | PlatformView |
-| Test suite | **177** | minimal | minimal | N/A |
+| Test suite | **202** | minimal | minimal | N/A |
 
 ## Dependencies
 

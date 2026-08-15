@@ -17,6 +17,7 @@ class HeadTracker {
   final RotationTarget target;
 
   /// Sensitivity multiplier for gyroscope input.
+  /// 1.0 (default) = true 1:1 head tracking. Values > 1 amplify rotation.
   double sensitivity;
 
   /// Latency prediction compensation in milliseconds.
@@ -41,10 +42,10 @@ class HeadTracker {
   double _calibrationSumY = 0;
 
   // Running fused states (for main thread web fallback)
+  double _yawFused = 0.0;
   double _pitchFused = 0.0;
-  double _rollFused = 0.0;
+  double? _prevYawFused;
   double? _prevPitchFused;
-  double? _prevRollFused;
 
   // Latest accelerometer readings
   double _accelX = 0.0;
@@ -69,7 +70,7 @@ class HeadTracker {
 
   HeadTracker({
     required this.target,
-    this.sensitivity = 0.03,
+    this.sensitivity = 1.0,
     this.predictionMs = 15.0,
     bool? useIsolate,
     this.gyroscopeStreamOverride,
@@ -79,7 +80,7 @@ class HeadTracker {
   /// For backwards compatibility with VRCamera.
   factory HeadTracker.forCamera(
     dynamic camera, {
-    double sensitivity = 0.03,
+    double sensitivity = 1.0,
     double predictionMs = 15.0,
     bool? useIsolate,
     Stream<GyroscopeEvent>? gyroscopeStreamOverride,
@@ -100,10 +101,10 @@ class HeadTracker {
     final receivePort = ReceivePort();
     mainSendPort.send(receivePort.sendPort);
 
+    double yawFused = 0.0;
     double pitchFused = 0.0;
-    double rollFused = 0.0;
+    double? prevYawFused;
     double? prevPitchFused;
-    double? prevRollFused;
 
     double accelX = 0.0;
     double accelY = 0.0;
@@ -112,7 +113,7 @@ class HeadTracker {
     double offsetX = 0.0;
     double offsetY = 0.0;
     double alpha = 0.98;
-    double sensitivity = 0.03;
+    double sensitivity = 1.0;
     double predictionMs = 15.0;
 
     DateTime? lastTimestamp;
@@ -148,49 +149,47 @@ class HeadTracker {
           final adjustedX = gx - offsetX;
           final adjustedY = gy - offsetY;
 
+          // Gravity reference for the pitch channel (device-Y rotation in
+          // landscape): gravity tilts between the X and Z device axes.
+          double gravityPitch() =>
+              atan2(-accelX, sqrt(accelY * accelY + accelZ * accelZ));
+
           final now = DateTime.now();
           if (lastTimestamp == null) {
             lastTimestamp = now;
-            final accelPitch = atan2(accelY, accelZ);
-            final accelRoll = atan2(
-              -accelX,
-              sqrt(accelY * accelY + accelZ * accelZ),
-            );
-            pitchFused = accelPitch;
-            rollFused = accelRoll;
-            prevPitchFused = accelPitch;
-            prevRollFused = accelRoll;
+            yawFused = 0.0;
+            pitchFused = gravityPitch();
+            prevYawFused = yawFused;
+            prevPitchFused = pitchFused;
             return;
           }
 
           final dt = now.difference(lastTimestamp!).inMicroseconds / 1000000.0;
           lastTimestamp = now;
 
-          final accelPitch = atan2(accelY, accelZ);
-          final accelRoll = atan2(
-            -accelX,
-            sqrt(accelY * accelY + accelZ * accelZ),
-          );
+          // Yaw (device-X rotation in landscape): gravity does NOT change
+          // under pure yaw, so there is no absolute reference — integrate
+          // the gyroscope directly (bias is handled by the anti-drift offsets).
+          yawFused += adjustedX * dt;
 
-          pitchFused =
-              alpha * (pitchFused + adjustedX * dt) + (1 - alpha) * accelPitch;
-          rollFused =
-              alpha * (rollFused + adjustedY * dt) + (1 - alpha) * accelRoll;
+          // Pitch: complementary filter, gyro integration anchored to gravity.
+          pitchFused = alpha * (pitchFused + adjustedY * dt) +
+              (1 - alpha) * gravityPitch();
 
           // Latency extrapolation prediction
           final predictionTime = predictionMs / 1000.0;
-          final predictedPitch = pitchFused + adjustedX * predictionTime;
-          final predictedRoll = rollFused + adjustedY * predictionTime;
+          final predictedYaw = yawFused + adjustedX * predictionTime;
+          final predictedPitch = pitchFused + adjustedY * predictionTime;
 
+          final dYaw = predictedYaw - (prevYawFused ?? predictedYaw);
           final dPitch = predictedPitch - (prevPitchFused ?? predictedPitch);
-          final dRoll = predictedRoll - (prevRollFused ?? predictedRoll);
 
+          prevYawFused = predictedYaw;
           prevPitchFused = predictedPitch;
-          prevRollFused = predictedRoll;
 
           mainSendPort.send([
-            -dPitch * sensitivity,
-            dRoll * sensitivity * 1.8,
+            -dYaw * sensitivity,
+            dPitch * sensitivity,
           ]);
         }
       }
@@ -203,10 +202,10 @@ class HeadTracker {
     calibrate();
 
     _lastTimestamp = null;
+    _prevYawFused = null;
     _prevPitchFused = null;
-    _prevRollFused = null;
+    _yawFused = 0.0;
     _pitchFused = 0.0;
-    _rollFused = 0.0;
 
     _gyroEventsCount = 0;
     isGyroscopeActive = true;
@@ -225,18 +224,19 @@ class HeadTracker {
       // Main-thread Web/Sync Fallback
       _accelSubscription =
           (accelerometerStreamOverride ?? accelerometerEventStream()).listen((
-            event,
-          ) {
-            _accelX = event.x;
-            _accelY = event.y;
-            _accelZ = event.z;
+        event,
+      ) {
+        _accelX = event.x;
+        _accelY = event.y;
+        _accelZ = event.z;
 
-            if (!isGyroscopeActive) {
-              _updateFromAccelerometerOnly(event.x, event.y, event.z);
-            }
-          });
+        if (!isGyroscopeActive) {
+          _updateFromAccelerometerOnly(event.x, event.y, event.z);
+        }
+      });
 
-      _subscription = (gyroscopeStreamOverride ?? gyroscopeEventStream()).listen((
+      _subscription =
+          (gyroscopeStreamOverride ?? gyroscopeEventStream()).listen((
         event,
       ) {
         _gyroEventsCount++;
@@ -260,46 +260,44 @@ class HeadTracker {
         final adjustedX = event.x - _offsetX;
         final adjustedY = event.y - _offsetY;
 
+        // Gravity reference for the pitch channel (device-Y rotation in
+        // landscape): gravity tilts between the X and Z device axes.
+        double gravityPitch() =>
+            atan2(-_accelX, sqrt(_accelY * _accelY + _accelZ * _accelZ));
+
         final now = DateTime.now();
         if (_lastTimestamp == null) {
           _lastTimestamp = now;
-          final accelPitch = atan2(_accelY, _accelZ);
-          final accelRoll = atan2(
-            -_accelX,
-            sqrt(_accelY * _accelY + _accelZ * _accelZ),
-          );
-          _pitchFused = accelPitch;
-          _rollFused = accelRoll;
-          _prevPitchFused = accelPitch;
-          _prevRollFused = accelRoll;
+          _yawFused = 0.0;
+          _pitchFused = gravityPitch();
+          _prevYawFused = _yawFused;
+          _prevPitchFused = _pitchFused;
           return;
         }
 
         final dt = now.difference(_lastTimestamp!).inMicroseconds / 1000000.0;
         _lastTimestamp = now;
 
-        final accelPitch = atan2(_accelY, _accelZ);
-        final accelRoll = atan2(
-          -_accelX,
-          sqrt(_accelY * _accelY + _accelZ * _accelZ),
-        );
+        // Yaw (device-X rotation in landscape): gravity does NOT change
+        // under pure yaw, so there is no absolute reference — integrate
+        // the gyroscope directly (bias is handled by the anti-drift offsets).
+        _yawFused += adjustedX * dt;
 
-        _pitchFused =
-            _alpha * (_pitchFused + adjustedX * dt) + (1 - _alpha) * accelPitch;
-        _rollFused =
-            _alpha * (_rollFused + adjustedY * dt) + (1 - _alpha) * accelRoll;
+        // Pitch: complementary filter, gyro integration anchored to gravity.
+        _pitchFused = _alpha * (_pitchFused + adjustedY * dt) +
+            (1 - _alpha) * gravityPitch();
 
         final predictionTime = predictionMs / 1000.0;
-        final predictedPitch = _pitchFused + adjustedX * predictionTime;
-        final predictedRoll = _rollFused + adjustedY * predictionTime;
+        final predictedYaw = _yawFused + adjustedX * predictionTime;
+        final predictedPitch = _pitchFused + adjustedY * predictionTime;
 
+        final dYaw = predictedYaw - (_prevYawFused ?? predictedYaw);
         final dPitch = predictedPitch - (_prevPitchFused ?? predictedPitch);
-        final dRoll = predictedRoll - (_prevRollFused ?? predictedRoll);
 
+        _prevYawFused = predictedYaw;
         _prevPitchFused = predictedPitch;
-        _prevRollFused = predictedRoll;
 
-        target.rotate(-dPitch * sensitivity, dRoll * sensitivity * 1.8);
+        target.rotate(-dYaw * sensitivity, dPitch * sensitivity);
       });
       return;
     }
@@ -330,14 +328,14 @@ class HeadTracker {
 
     _accelSubscription =
         (accelerometerStreamOverride ?? accelerometerEventStream()).listen((
-          event,
-        ) {
-          _isolateSendPort?.send([1, event.x, event.y, event.z]);
+      event,
+    ) {
+      _isolateSendPort?.send([1, event.x, event.y, event.z]);
 
-          if (!isGyroscopeActive) {
-            _updateFromAccelerometerOnly(event.x, event.y, event.z);
-          }
-        });
+      if (!isGyroscopeActive) {
+        _updateFromAccelerometerOnly(event.x, event.y, event.z);
+      }
+    });
 
     _subscription = (gyroscopeStreamOverride ?? gyroscopeEventStream()).listen((
       event,
@@ -446,7 +444,7 @@ class _DynamicTarget implements RotationTarget {
 /// Delivers the Looking-Glass "Holographic 3D Window" effect by altering off-axis projection.
 class FaceTrackerDriver {
   final dynamic cameraRig;
-  
+
   Vector3 facePosition = Vector3(0, 0, 0.4); // Default 40cm in front of screen
 
   FaceTrackerDriver({required this.cameraRig});

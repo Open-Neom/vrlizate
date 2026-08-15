@@ -31,6 +31,7 @@ export 'core/camera/vr_camera.dart';
 
 // ============ Core — Input ============
 export 'core/input/controller_state.dart';
+export 'core/input/desktop_input.dart';
 export 'core/input/gaze_pointer.dart';
 export 'core/input/hand_state.dart';
 export 'core/input/head_tracker.dart';

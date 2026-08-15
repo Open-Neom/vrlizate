@@ -65,7 +65,8 @@ class RenderPass {
     _renderedCount = 0;
 
     // Set active distortion coefficients globally for this render pass
-    MeshNode.activeDistortionCoefficients = enableLensDistortion ? distortionCoefficients : null;
+    MeshNode.activeDistortionCoefficients =
+        enableLensDistortion ? distortionCoefficients : null;
 
     try {
       final frustum = VrFrustum.fromViewProjection(viewProjection);
@@ -90,8 +91,8 @@ class RenderPass {
         if (!node.visible) return;
         if (node is! MeshNode) return;
 
-        // Frustum culling
-        final cull = frustum.testAabb(node.worldAabb);
+        // Frustum culling (own geometry bounds, not the subtree union)
+        final cull = frustum.testAabb(node.ownWorldAabb);
         if (cull == CullResult.outside) {
           _culledCount++;
           return;
@@ -181,8 +182,10 @@ class RenderPass {
       rightImg = _lastRightImage!;
     } else {
       // Render new images and update cache
-      final newLeft = _renderEyeToImage(eyeSize, cameraRig.leftViewProjection(aspect));
-      final newRight = _renderEyeToImage(eyeSize, cameraRig.rightViewProjection(aspect));
+      final newLeft =
+          _renderEyeToImage(eyeSize, cameraRig.leftViewProjection(aspect));
+      final newRight =
+          _renderEyeToImage(eyeSize, cameraRig.rightViewProjection(aspect));
 
       _lastLeftImage?.dispose();
       _lastRightImage?.dispose();

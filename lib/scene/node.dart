@@ -18,9 +18,11 @@ class Node {
 
   Matrix4? _worldMatrix;
   bool _worldDirty = true;
+  Aabb? _worldAabbCache;
+  bool _worldAabbDirty = true;
 
   Node({this.name = '', Transform3D? transform})
-    : transform = transform ?? Transform3D();
+      : transform = transform ?? Transform3D();
 
   // ─── Hierarchy ──────────────────────
 
@@ -39,6 +41,8 @@ class Node {
     if (_children.remove(child)) {
       child._parent = null;
       child._markWorldDirty();
+      // The child no longer contributes to this subtree's union AABB
+      _markAabbDirtyUp();
     }
   }
 
@@ -80,8 +84,20 @@ class Node {
   void _markWorldDirty() {
     _worldDirty = true;
     _worldMatrix = null;
+    _markAabbDirtyUp();
     for (final child in _children) {
       child._markWorldDirty();
+    }
+  }
+
+  /// A transform change anywhere in the subtree invalidates the union AABBs
+  /// of all ancestors (their boxes must contain this node).
+  void _markAabbDirtyUp() {
+    _worldAabbDirty = true;
+    var p = _parent;
+    while (p != null) {
+      p._worldAabbDirty = true;
+      p = p._parent;
     }
   }
 
@@ -116,10 +132,28 @@ class Node {
   /// Override for custom rendering.
   void onRender(Canvas canvas, Matrix4 viewProjection) {}
 
-  /// Computes the AABB of this node in world space.
-  Aabb get worldAabb {
+  /// Computes the AABB of this node's own geometry in world space
+  /// (without descendants). Used for self-hits in raycasting and physics.
+  Aabb get ownWorldAabb {
     final local = localAabb;
     return local.transformed(worldMatrix);
+  }
+
+  /// Computes the AABB of this node AND all its descendants in world space.
+  /// Group nodes have no geometry, so their own box would be a phantom ±0.5m
+  /// cube at their position — using it for culling wrongly discarded entire
+  /// subtrees. The union is cached and invalidated on any transform or
+  /// hierarchy change in the subtree.
+  Aabb get worldAabb {
+    if (_worldAabbDirty || _worldAabbCache == null) {
+      final result = ownWorldAabb;
+      for (final child in _children) {
+        result.expandToIncludeAabb(child.worldAabb);
+      }
+      _worldAabbCache = result;
+      _worldAabbDirty = false;
+    }
+    return _worldAabbCache!;
   }
 
   /// Override to provide local-space bounding box.

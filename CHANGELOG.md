@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.7.0 — 2026-08-14
+
+### Added
+- **Desktop Input Driver (`DesktopInputDriver`)**: First-class desktop support for macOS/Windows/Linux targets — mouse-look (drag, same sign convention as touch fallback, optional `invertY`), WASD + Q/E locomotion with camera-relative movement and Shift sprint multiplier, rebindable keys, and focus-loss key release.
+- **Mouse 3D Picking**: `screenPointToRay()` unprojects any screen point through the inverse view-projection into a world ray, and `pick()` raycasts the scene — the desktop equivalent of `GazePointer`.
+- **`DesktopInputRegion` widget**: drop-in wrapper that forwards pointer and keyboard events to the driver, with click-to-pick and hover-ray callbacks.
+- **`VREngine.enableDesktopInput()`**: one-call integration; locomotion updates run automatically in the engine tick.
+
+### Fixed
+- **Group Node AABB Culling Bug (Raycast Silently Broken)**: `Node.worldAabb` for group nodes was a phantom ±0.5m box at the node's position that did NOT include children. The `Raycaster`'s broad-phase pruned entire subtrees when the ray missed that box — any node farther than 0.5m from its parent's origin could never be raycast (gaze selection, mouse picking). `worldAabb` is now a cached union of the node's own bounds and all descendants (invalidated upward on any transform/hierarchy change), while self-hits, physics, and frustum culling use the new `ownWorldAabb` (own geometry only, preserving previous semantics).
+
+## 1.6.0 — 2026-08-06
+
+### Fixed
+- **`Transform3D.lookAt` Vertical Axis Flip (Black Screen Bug)**: Removed an erroneous rotation-matrix transpose — `makeViewMatrix` already stores basis vectors as columns, so transposing flipped the Y component of the camera forward vector. Cameras looking steeply down (e.g. board-game and top-down scenes) ended up looking up, causing the entire scene to be frustum-culled and rendering a black screen. Added a regression test asserting the full forward vector for look-down cameras.
+- **Head Tracking Scale (33× Attenuation)**: Gyroscope deltas were already integrated radians, but the default `sensitivity = 0.03` scaled them down to 3% of real head motion — tracking appeared dead and only touch-drag worked. Default sensitivity is now `1.0` (true 1:1 tracking) in `HeadTracker`, `HeadTracker.forCamera`, and `VREngine.enableHeadTracking`.
+
+### Changed
+- **Yaw Channel Now Gyro-Only (Drift-Free Turns)**: The yaw (device-X in landscape) channel no longer anchors to `atan2(accelY, accelZ)`, which is undefined noise when the phone is held level in a viewer and pulled the view back after head turns. Yaw now integrates the gyroscope directly (bias handled by the existing anti-drift auto-calibration); pitch keeps the gravity-anchored complementary filter. Applies to both the background-Isolate and main-thread fallback paths.
+- **Removed ×1.8 Vertical Amplification**: With correct 1:1 scaling, amplified pitch is no longer needed and was disorienting; pitch is now also 1:1.
+
+### Migration Notes
+- If your app passed an explicit `sensitivity` value tuned for the old broken scale (e.g. `0.03`), remove it or retune around `1.0` = 1:1.
+
 ## 1.5.0 — 2026-07-21
 
 ### Added

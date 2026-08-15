@@ -43,12 +43,17 @@ class Raycaster {
   ) {
     if (!node.visible) return;
 
-    // Quick AABB test first
-    final aabb = node.worldAabb;
-    if (!_rayIntersectsAabb(ray, aabb, maxDist)) {
-      // Also skip children if parent AABB missed
+    // Broad-phase: prune the whole subtree with the union AABB (includes
+    // descendants — group nodes have no geometry of their own).
+    final subtreeAabb = node.worldAabb;
+    if (!_rayIntersectsAabb(ray, subtreeAabb, maxDist)) {
+      // Also skip children if the whole subtree missed
       return;
     }
+
+    // Self-hit test uses ONLY this node's own bounds (approximation for
+    // non-mesh nodes), so group nodes don't shadow their children.
+    final aabb = node.ownWorldAabb;
 
     // Test this node's AABB as a hit (approximation for non-mesh nodes)
     final aabbHit = _rayAabbIntersection(ray, aabb);
