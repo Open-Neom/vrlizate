@@ -36,6 +36,7 @@ export 'core/input/gaze_pointer.dart';
 export 'core/input/hand_state.dart';
 export 'core/input/hand_tracking_driver.dart';
 export 'core/input/head_tracker.dart';
+export 'core/input/inertial_tap_detector.dart';
 export 'core/input/input_fusion.dart';
 export 'core/input/ultrasonic_gesture.dart';
 export 'core/input/wifi_rtt.dart';

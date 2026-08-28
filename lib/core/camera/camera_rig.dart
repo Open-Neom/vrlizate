@@ -90,6 +90,7 @@ class CameraRig implements RotationTarget {
   }
 
   /// Recenters horizontal gaze heading (Yaw = 0°) while maintaining pitch (elevation).
+  @override
   void recenter() {
     _yaw = 0.0;
     _applyOrientation();

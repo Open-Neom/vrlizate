@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vector_math/vector_math.dart';
 
@@ -54,14 +53,12 @@ class HeadTracker {
 
   // Latest accelerometer readings
   double _accelX = 0.0;
-  double _accelY = 0.0;
   double _accelZ = 9.8;
 
   // DSD (Dynamic Sensor Diagnostics) fallback states
   bool isGyroscopeActive = true;
   int _gyroEventsCount = 0;
   double _smoothPitch = 0.0;
-  double _smoothRoll = 0.0;
   double? _lastAccelPitch;
 
   DateTime? _lastTimestamp;
@@ -124,7 +121,6 @@ class HeadTracker {
     _gyroEventsCount = 0;
     isGyroscopeActive = true;
     _smoothPitch = 0.0;
-    _smoothRoll = 0.0;
     _lastAccelPitch = null;
 
     // Detect if gyroscope is present and active within 800ms
@@ -143,7 +139,6 @@ class HeadTracker {
                   ))
               .listen((event) {
                 _accelX = event.x;
-                _accelY = event.y;
                 _accelZ = event.z;
 
                 if (!isGyroscopeActive) {
