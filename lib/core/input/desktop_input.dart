@@ -36,6 +36,12 @@ class DesktopInputDriver {
   /// Speed multiplier while a sprint key (Shift) is held.
   double sprintMultiplier;
 
+  /// Whether snap turning is enabled (turns in discrete angles to prevent motion sickness).
+  bool snapTurn;
+
+  /// Snap turning angle in radians (defaults to ~30° or 0.5236 rad).
+  double snapTurnAngle;
+
   /// Inverts vertical mouse-look.
   bool invertY;
 
@@ -49,6 +55,9 @@ class DesktopInputDriver {
   LogicalKeyboardKey keyRight;
   LogicalKeyboardKey keyUp;
   LogicalKeyboardKey keyDown;
+  LogicalKeyboardKey keySnapTurnLeft;
+  LogicalKeyboardKey keySnapTurnRight;
+  LogicalKeyboardKey keyRecenter;
 
   final Set<LogicalKeyboardKey> _pressedKeys = {};
 
@@ -57,6 +66,8 @@ class DesktopInputDriver {
     this.lookSensitivity = 0.0035,
     this.moveSpeed = 3.0,
     this.sprintMultiplier = 2.5,
+    this.snapTurn = false,
+    this.snapTurnAngle = 0.5235987755982988, // 30 degrees
     this.invertY = false,
     this.enabled = true,
     this.keyForward = LogicalKeyboardKey.keyW,
@@ -65,7 +76,13 @@ class DesktopInputDriver {
     this.keyRight = LogicalKeyboardKey.keyD,
     this.keyUp = LogicalKeyboardKey.keyE,
     this.keyDown = LogicalKeyboardKey.keyQ,
+    this.keySnapTurnLeft = LogicalKeyboardKey.arrowLeft,
+    this.keySnapTurnRight = LogicalKeyboardKey.arrowRight,
+    this.keyRecenter = LogicalKeyboardKey.keyR,
   });
+
+  /// Recenters the camera gaze.
+  void recenter() => cameraRig.recenter();
 
   /// Currently pressed movement keys (read-only view).
   Set<LogicalKeyboardKey> get pressedKeys => Set.unmodifiable(_pressedKeys);
@@ -85,11 +102,27 @@ class DesktopInputDriver {
   // ─── Keyboard ──────────────────
 
   /// Tracks a key event. Returns true if the key is managed by this driver
-  /// (movement or sprint keys), so the widget layer can mark it handled.
+  /// (movement, sprint, snap-turn, or recenter keys), so the widget layer can mark it handled.
   bool handleKeyEvent(KeyEvent event) {
     if (!enabled) return false;
 
     final key = event.logicalKey;
+
+    if (event is KeyDownEvent) {
+      if (key == keyRecenter) {
+        recenter();
+        return true;
+      }
+      if (key == keySnapTurnLeft) {
+        cameraRig.rotate(snapTurnAngle, 0);
+        return true;
+      }
+      if (key == keySnapTurnRight) {
+        cameraRig.rotate(-snapTurnAngle, 0);
+        return true;
+      }
+    }
+
     final managed = _isMovementKey(key) || _isSprintKey(key);
     if (!managed) return false;
 

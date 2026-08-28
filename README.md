@@ -128,8 +128,9 @@ Procedural primitives with normals and UVs:
 - **Teleport** — point-and-teleport with max distance, cancel support
 
 ### Input
-- **Head tracking** — gyroscope with auto-calibration and **true 1:1 tracking** (sensitivity `1.0` default); gyro-only yaw integration (no gravity noise on level phones) + gravity-anchored pitch fusion
-- **Desktop input** — mouse-look (drag), WASD + Q/E locomotion with sprint, rebindable keys, and mouse 3D picking via `DesktopInputDriver` + `DesktopInputRegion` widget (macOS/Windows/Linux)
+- **Head tracking** — gyroscope with auto-calibration and **true 1:1 tracking** (sensitivity `1.0` default); landscape-calibrated sensor fusion, zero-roll horizon stabilization, sensor jitter damping, and ergonomic pitch gain (`pitchGain = 1.25`)
+- **Interaction & Gaze** — `GazePointer` with adaptive dwell timing, grace period, and tactile **micro-haptic feedback** (`HapticFeedback`) on hover, select, and tap
+- **Desktop input** — mouse-look (drag), WASD + Q/E locomotion with sprint, snap turning ($30^\circ$ steps), recenter shortcut ('R'), and mouse 3D picking via `DesktopInputDriver` + `DesktopInputRegion` widget (macOS/Windows/Linux)
 - **Hand tracking** — 26 joints (OpenXR standard), gesture detection:
   - Pinch (thumb-index distance)
   - Fist (all fingers curled)
@@ -137,7 +138,8 @@ Procedural primitives with normals and UVs:
   - Pointing ray (palm through index tip)
 - **Controllers** — thumbstick, grip, trigger, position, forward direction
 
-### Spatial UI
+### Spatial UI & Comfort
+- **VAC Comfort Planes** — standardized `comfortDistanceMin` (1.2m), `comfortDistanceDefault` (1.8m), and `comfortDistanceMax` (3.0m) to prevent vergence-accommodation eye strain
 - **Billboard** — always faces camera
 - **Panel** — floating 3D rectangle with background, border, custom content
 - **SpatialButton** — interactive button in 3D space
@@ -150,8 +152,10 @@ Procedural primitives with normals and UVs:
 - **Vignette** — edge darkening
 - **Lens Distortion** — barrel distortion with chromatic aberration (Google Cardboard v2 preset)
 
-### Camera
-- Stereoscopic rig with configurable **IPD** (0.064m default)
+### Camera & Rig
+- **Zero-Roll Horizon Stabilization** — $Q_{\text{Yaw}}(\text{World } Y) \times Q_{\text{Pitch}}(\text{Local } X)$ keeps the virtual ground plane permanently horizontal without tilt drift
+- **One-Tap / Zenith Recentering** — `recenter()` realigns horizontal gaze azimuth instant hands-free or via double-tap
+- **Stereoscopic Rig** with clamped **IPD** calibration (50mm–80mm, 64mm default)
 - Off-axis projection for proper convergence
 - Configurable FOV, near/far clip planes
 - Left/right/mono view-projection matrices

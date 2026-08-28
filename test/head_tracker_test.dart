@@ -17,6 +17,11 @@ class MockRotationTarget implements RotationTarget {
   void reset() {
     resetCount++;
   }
+
+  @override
+  void recenter() {
+    resetCount++;
+  }
 }
 
 void main() {

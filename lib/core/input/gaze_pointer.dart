@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:vector_math/vector_math.dart';
 
 import '../camera/camera_rig.dart';
@@ -10,8 +11,8 @@ import '../../interaction/raycast.dart';
 /// Fires a ray from the camera center forward direction.
 ///
 /// Supports adaptive dwell timing (repeated selections of the same target
-/// become faster), a grace period that tolerates brief gaze slips, and a
-/// richer reticle with progress feedback states.
+/// become faster), a grace period that tolerates brief gaze slips, tactile
+/// haptic feedback on selection, and a richer reticle with progress feedback states.
 class GazePointer {
   final CameraRig cameraRig;
 
@@ -32,6 +33,9 @@ class GazePointer {
   /// Grace period in seconds: if the gaze briefly leaves the target for less
   /// than this, the dwell timer is preserved instead of reset.
   double gazeGracePeriod;
+
+  /// Whether to trigger subtle tactile haptic feedback on gaze enter and dwell selection.
+  bool enableHaptics;
 
   /// Current dwell progress (0 to 1).
   double dwellProgress = 0;
@@ -57,6 +61,10 @@ class GazePointer {
   /// Callback when a target is selected via dwell.
   void Function(String nodeId)? onDwellSelect;
 
+  /// Alias for [onDwellSelect].
+  void Function(String nodeId)? get onGazeSelect => onDwellSelect;
+  set onGazeSelect(void Function(String nodeId)? fn) => onDwellSelect = fn;
+
   /// Callback when a target is tapped/clicked.
   void Function(String nodeId)? onTap;
 
@@ -76,6 +84,7 @@ class GazePointer {
     this.dwellAcceleration = 0.8,
     this.adaptiveDwell = true,
     this.gazeGracePeriod = 0.15,
+    this.enableHaptics = true,
     this.onDwellSelect,
     this.onTap,
     this.onGazeEnter,
@@ -86,6 +95,9 @@ class GazePointer {
   /// Manually trigger a tap/click event on the currently gazed target.
   void triggerTap(RaycastHit? hit) {
     if (_gazeTargetId != null) {
+      if (enableHaptics) {
+        HapticFeedback.mediumImpact();
+      }
       onTap?.call(_gazeTargetId!);
       onDwellSelect?.call(_gazeTargetId!);
 
@@ -143,7 +155,12 @@ class GazePointer {
           : 0;
       _graceTargetId = null;
       _graceTimer = 0;
-      if (hitNodeId != null) onGazeEnter?.call(hitNodeId);
+      if (hitNodeId != null) {
+        if (enableHaptics) {
+          HapticFeedback.selectionClick();
+        }
+        onGazeEnter?.call(hitNodeId);
+      }
       return;
     }
 
@@ -162,6 +179,9 @@ class GazePointer {
     if (dwellProgress >= 1.0 && !_selected) {
       _selected = true;
       _applyAdaptation(hitNodeId);
+      if (enableHaptics) {
+        HapticFeedback.lightImpact();
+      }
       onDwellSelect?.call(hitNodeId);
     }
   }

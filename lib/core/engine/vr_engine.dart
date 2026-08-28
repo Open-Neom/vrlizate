@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' show CustomPainter, ChangeNotifier;
 import 'package:vector_math/vector_math.dart';
 
@@ -33,6 +34,7 @@ class VREngine extends ChangeNotifier {
   Quaternion? _lastCameraRotation;
 
   Timer? _timer;
+  Ticker? _ticker;
   DateTime _lastTime = DateTime.now();
   bool _running = false;
   int _frameCount = 0;
@@ -55,12 +57,20 @@ class VREngine extends ChangeNotifier {
   int get culledCount => renderPass.culledCount;
   int get renderedCount => renderPass.renderedCount;
 
-  /// Starts the game loop at ~60fps.
+  /// Starts the game loop, synchronized to the display's vsync when a
+  /// [SchedulerBinding] is available (less jitter → less VR motion sickness
+  /// than a fixed 16ms timer). Falls back to a ~60fps timer in headless
+  /// environments (tests, isolates without a binding).
   void start() {
     if (_running) return;
     _running = true;
     _lastTime = DateTime.now();
-    _timer = Timer.periodic(const Duration(milliseconds: 16), (_) => _tick());
+    try {
+      _ticker = Ticker((_) => _tick())..start();
+    } catch (_) {
+      _ticker = null;
+      _timer = Timer.periodic(const Duration(milliseconds: 16), (_) => _tick());
+    }
   }
 
   /// Stops the game loop.
@@ -68,6 +78,7 @@ class VREngine extends ChangeNotifier {
     _running = false;
     _timer?.cancel();
     _timer = null;
+    _ticker?.stop();
   }
 
   /// Enables gyroscope head tracking.
@@ -200,6 +211,7 @@ class VREngine extends ChangeNotifier {
   @override
   void dispose() {
     stop();
+    _ticker?.dispose();
     headTracker?.dispose();
     super.dispose();
   }
@@ -242,4 +254,7 @@ class _HeadTrackerBridge implements RotationTarget {
 
   @override
   void reset() => rig.reset();
+
+  @override
+  void recenter() => rig.recenter();
 }

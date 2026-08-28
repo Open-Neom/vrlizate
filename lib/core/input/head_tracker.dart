@@ -11,6 +11,7 @@ import 'background_isolate.dart';
 abstract class RotationTarget {
   void rotate(double dTheta, double dPhi);
   void reset();
+  void recenter() => reset();
 }
 
 /// Head tracking input via device gyroscope with calibration and background Isolate.
@@ -20,6 +21,9 @@ class HeadTracker {
   /// Sensitivity multiplier for gyroscope input.
   /// 1.0 (default) = true 1:1 head tracking. Values > 1 amplify rotation.
   double sensitivity;
+
+  /// Ergonomic pitch multiplier so comfortable neck tilts (±40°) reach the full vertical range.
+  double pitchGain;
 
   /// Latency prediction compensation in milliseconds.
   double predictionMs;
@@ -66,17 +70,26 @@ class HeadTracker {
   // The worker's SendPort (typed dynamically to stay WASM-compatible).
   dynamic _isolateSendPort;
 
+  // Damping states
+  double _dampedDYaw = 0.0;
+  double _dampedDPitch = 0.0;
+
+  /// Whether high-frequency sensor jitter damping is active.
+  bool jitterDamping;
+
   final Stream<GyroscopeEvent>? gyroscopeStreamOverride;
   final Stream<AccelerometerEvent>? accelerometerStreamOverride;
 
   HeadTracker({
     required this.target,
     this.sensitivity = 1.0,
+    this.pitchGain = 1.25,
     this.predictionMs = 15.0,
+    this.jitterDamping = true,
     bool? useIsolate,
     this.gyroscopeStreamOverride,
     this.accelerometerStreamOverride,
-  }) : useIsolate = useIsolate ?? (!kIsWeb);
+  }) : useIsolate = useIsolate ?? false;
 
   /// For backwards compatibility with VRCamera.
   factory HeadTracker.forCamera(
@@ -122,84 +135,105 @@ class HeadTracker {
     });
 
     if (!useIsolate) {
-      // Main-thread Web/Sync Fallback
+      // Main-thread Direct Low-Latency Fusion
       _accelSubscription =
-          (accelerometerStreamOverride ?? accelerometerEventStream()).listen((
-            event,
-          ) {
-            _accelX = event.x;
-            _accelY = event.y;
-            _accelZ = event.z;
+          (accelerometerStreamOverride ??
+                  accelerometerEventStream(
+                    samplingPeriod: SensorInterval.fastestInterval,
+                  ))
+              .listen((event) {
+                _accelX = event.x;
+                _accelY = event.y;
+                _accelZ = event.z;
 
-            if (!isGyroscopeActive) {
-              _updateFromAccelerometerOnly(event.x, event.y, event.z);
-            }
-          });
+                if (!isGyroscopeActive) {
+                  _updateFromAccelerometerOnly(event.x, event.y, event.z);
+                }
+              });
 
-      _subscription = (gyroscopeStreamOverride ?? gyroscopeEventStream()).listen((
-        event,
-      ) {
-        _gyroEventsCount++;
-        isGyroscopeActive = true;
+      _subscription =
+          (gyroscopeStreamOverride ??
+                  gyroscopeEventStream(
+                    samplingPeriod: SensorInterval.fastestInterval,
+                  ))
+              .listen((event) {
+                _gyroEventsCount++;
+                isGyroscopeActive = true;
 
-        if (_calibrating) {
-          _calibrationSumX += event.x;
-          _calibrationSumY += event.y;
-          _calibrationSamples++;
-          return;
-        }
+                if (_calibrating) {
+                  _calibrationSumX += event.x;
+                  _calibrationSumY += event.y;
+                  _calibrationSamples++;
+                }
 
-        // Dynamic Auto-Calibrating Anti-Drift:
-        // If the gyroscope velocity is extremely low, adaptively adjust the offsets
-        final double magnitude = sqrt(event.x * event.x + event.y * event.y);
-        if (magnitude < 0.015) {
-          _offsetX = _offsetX * 0.995 + event.x * 0.005;
-          _offsetY = _offsetY * 0.995 + event.y * 0.005;
-        }
+                // Dynamic Auto-Calibrating Anti-Drift:
+                // If the gyroscope velocity is extremely low, adaptively adjust the offsets
+                final double magnitude = sqrt(
+                  event.x * event.x + event.y * event.y,
+                );
+                if (magnitude < 0.015) {
+                  _offsetX = _offsetX * 0.995 + event.x * 0.005;
+                  _offsetY = _offsetY * 0.995 + event.y * 0.005;
+                }
 
-        final adjustedX = event.x - _offsetX;
-        final adjustedY = event.y - _offsetY;
+                final adjustedX = event.x - _offsetX;
+                final adjustedY = event.y - _offsetY;
 
-        // Gravity reference for the pitch channel (device-Y rotation in
-        // landscape): gravity tilts between the X and Z device axes.
-        double gravityPitch() =>
-            atan2(-_accelX, sqrt(_accelY * _accelY + _accelZ * _accelZ));
+                // Gravity reference for pitch channel in Landscape Left:
+                // Horizon (0°): accelX ≈ +9.8, accelZ ≈ 0 -> atan2(0, 9.8) = 0.0
+                // Look up (ceiling): atan2(+9.8, 0) = +1.57 rad
+                // Look down (feet): atan2(-9.8, 0) = -1.57 rad
+                double gravityPitch() {
+                  final ax = _accelX.abs() < 0.01 ? 0.01 : _accelX;
+                  return atan2(_accelZ, ax);
+                }
 
-        final now = DateTime.now();
-        if (_lastTimestamp == null) {
-          _lastTimestamp = now;
-          _yawFused = 0.0;
-          _pitchFused = gravityPitch();
-          _prevYawFused = _yawFused;
-          _prevPitchFused = _pitchFused;
-          return;
-        }
+                final now = DateTime.now();
+                if (_lastTimestamp == null) {
+                  _lastTimestamp = now;
+                  _yawFused = 0.0;
+                  _pitchFused = gravityPitch();
+                  _prevYawFused = _yawFused;
+                  _prevPitchFused = _pitchFused;
+                  return;
+                }
 
-        final dt = now.difference(_lastTimestamp!).inMicroseconds / 1000000.0;
-        _lastTimestamp = now;
+                final dt =
+                    now.difference(_lastTimestamp!).inMicroseconds / 1000000.0;
+                _lastTimestamp = now;
 
-        // Yaw (device-X rotation in landscape): gravity does NOT change
-        // under pure yaw, so there is no absolute reference — integrate
-        // the gyroscope directly (bias is handled by the anti-drift offsets).
-        _yawFused += adjustedX * dt;
+                // Yaw in Landscape Left: turning head LEFT produces adjustedX > 0,
+                // so +adjustedX increases camera yaw (looking left).
+                _yawFused += adjustedX * dt;
 
-        // Pitch: complementary filter, gyro integration anchored to gravity.
-        _pitchFused =
-            _alpha * (_pitchFused + adjustedY * dt) +
-            (1 - _alpha) * gravityPitch();
+                // Pitch in Landscape Left: tilting head UP increases camera pitch (looking up).
+                _pitchFused =
+                    _alpha * (_pitchFused + adjustedY * dt) +
+                    (1 - _alpha) * gravityPitch();
 
-        final predictionTime = predictionMs / 1000.0;
-        final predictedYaw = _yawFused + adjustedX * predictionTime;
-        final predictedPitch = _pitchFused + adjustedY * predictionTime;
+                final predictionTime = predictionMs / 1000.0;
+                final predictedYaw = _yawFused + adjustedX * predictionTime;
+                final predictedPitch = _pitchFused + adjustedY * predictionTime;
 
-        final dYaw = predictedYaw - (_prevYawFused ?? predictedYaw);
-        final dPitch = predictedPitch - (_prevPitchFused ?? predictedPitch);
+                final dYaw = predictedYaw - (_prevYawFused ?? predictedYaw);
+                final dPitch =
+                    predictedPitch - (_prevPitchFused ?? predictedPitch);
 
-        _prevYawFused = predictedYaw;
-        _prevPitchFused = predictedPitch;
+                _prevYawFused = predictedYaw;
+                _prevPitchFused = predictedPitch;
 
-        target.rotate(-dYaw * sensitivity, dPitch * sensitivity);
-      });
+                if (jitterDamping) {
+                  // Deadband for tiny sensor vibrations
+                  final rawDYaw = dYaw.abs() < 0.00015 ? 0.0 : dYaw;
+                  final rawDPitch = dPitch.abs() < 0.00015 ? 0.0 : dPitch;
+                  // Fast exponential filter
+                  _dampedDYaw = _dampedDYaw * 0.15 + rawDYaw * 0.85;
+                  _dampedDPitch = _dampedDPitch * 0.15 + rawDPitch * 0.85;
+                  target.rotate(_dampedDYaw * sensitivity, _dampedDPitch * sensitivity * pitchGain);
+                } else {
+                  target.rotate(dYaw * sensitivity, dPitch * sensitivity * pitchGain);
+                }
+              });
       return;
     }
 
@@ -229,45 +263,48 @@ class HeadTracker {
     fusionIsolate.start(headTrackingFusionEntry);
 
     _accelSubscription =
-        (accelerometerStreamOverride ?? accelerometerEventStream()).listen((
-          event,
-        ) {
-          _isolateSendPort?.send([1, event.x, event.y, event.z]);
+        (accelerometerStreamOverride ??
+                accelerometerEventStream(
+                  samplingPeriod: SensorInterval.fastestInterval,
+                ))
+            .listen((event) {
+              _isolateSendPort?.send([1, event.x, event.y, event.z]);
 
-          if (!isGyroscopeActive) {
-            _updateFromAccelerometerOnly(event.x, event.y, event.z);
-          }
-        });
+              if (!isGyroscopeActive) {
+                _updateFromAccelerometerOnly(event.x, event.y, event.z);
+              }
+            });
 
-    _subscription = (gyroscopeStreamOverride ?? gyroscopeEventStream()).listen((
-      event,
-    ) {
-      _gyroEventsCount++;
-      isGyroscopeActive = true;
+    _subscription =
+        (gyroscopeStreamOverride ??
+                gyroscopeEventStream(
+                  samplingPeriod: SensorInterval.fastestInterval,
+                ))
+            .listen((event) {
+              _gyroEventsCount++;
+              isGyroscopeActive = true;
 
-      if (_calibrating) {
-        _calibrationSumX += event.x;
-        _calibrationSumY += event.y;
-        _calibrationSamples++;
-        return;
-      }
-      _isolateSendPort?.send([2, event.x, event.y, event.z]);
-    });
+              if (_calibrating) {
+                _calibrationSumX += event.x;
+                _calibrationSumY += event.y;
+                _calibrationSamples++;
+              }
+              _isolateSendPort?.send([2, event.x, event.y, event.z]);
+            });
   }
 
   /// Estimates pitch (tilt up/down) directly from gravity when no gyroscope is available.
   void _updateFromAccelerometerOnly(double ax, double ay, double az) {
-    final double pitch = atan2(ay, az);
-    final double roll = atan2(-ax, sqrt(ay * ay + az * az));
+    final axSafe = ax.abs() < 0.01 ? 0.01 : ax;
+    final double pitch = atan2(az, axSafe);
 
     // Low-pass filter to smooth hand jitters
     _smoothPitch = _smoothPitch * 0.85 + pitch * 0.15;
-    _smoothRoll = _smoothRoll * 0.85 + roll * 0.15;
 
     if (_lastAccelPitch != null) {
       final dPitch = _smoothPitch - _lastAccelPitch!;
       // Apply pitch (vertical look) delta to camera.
-      target.rotate(0.0, dPitch * sensitivity);
+      target.rotate(0.0, dPitch * sensitivity * pitchGain);
     }
 
     _lastAccelPitch = _smoothPitch;
@@ -296,6 +333,13 @@ class HeadTracker {
       }
       _calibrating = false;
     });
+  }
+
+  /// Recenters the horizontal head-tracking azimuth (Yaw = 0°).
+  void recenter() {
+    _yawFused = 0.0;
+    _prevYawFused = null;
+    target.recenter();
   }
 
   /// Applies touch/pan input as rotation (fallback when no gyroscope).
@@ -337,6 +381,15 @@ class _DynamicTarget implements RotationTarget {
   @override
   void reset() {
     _target.reset();
+  }
+
+  @override
+  void recenter() {
+    try {
+      _target.recenter();
+    } catch (_) {
+      _target.reset();
+    }
   }
 }
 

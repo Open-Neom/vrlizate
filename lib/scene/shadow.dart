@@ -51,7 +51,7 @@ class ShadowRenderer {
       ..color = Color.fromARGB((config.darkness * 100).toInt(), 0, 0, 0);
 
     for (final node in nodes) {
-      if (!node.visible) return;
+      if (!node.visible) continue;
       final pos = node.worldPosition;
 
       // Project position onto ground plane along light direction

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.9.0 — 2026-08-27
+
+### Added — VR Ergonomics, Horizon Stabilization & Sensor Fusion
+- **Zero-Roll Horizon Stabilization (`CameraRig`)**: Orientation is now calculated as decoupled $Q_{\text{Yaw}}(\text{World } Y) \times Q_{\text{Pitch}}(\text{Local } X)$ enforcing $\text{Roll} = 0^\circ$. Prevents sideways floor tilting and eliminates cumulative gyroscope roll drift on mobile viewers.
+- **Calibrated Landscape Gyroscope Fusion (`HeadTracker`)**: Exact sensor axis mapping for horizontal VR viewers (`DeviceOrientation.landscapeLeft`). Yaw (left/right) and pitch (up/down) track physical head movements 1:1 with accelerometer gravity anchoring $\text{pitch} = \text{atan2}(\text{accelZ}, \text{accelX})$.
+- **Ergonomic Pitch Gain (`HeadTracker.pitchGain = 1.25`)**: Gentle $\pm 40^\circ$ neck tilts smoothly reach the full vertical field (ground/feet at $-80^\circ$ and ceiling/zenith at $+80^\circ$) without cervical strain.
+- **Sensor Jitter Damping (`HeadTracker.jitterDamping`)**: Deadband threshold ($<0.00015\text{ rad}$) and fast exponential low-pass filter ($\alpha = 0.85$) eliminate IMU thermal noise and hand micro-tremors without adding latency.
+- **Hands-Free & One-Tap Recenter (`recenter()`)**: Added `recenter()` to `RotationTarget`, `CameraRig`, `HeadTracker`, and `DesktopInputDriver` (bound to key 'R') to realign the forward heading ($0^\circ$) instantly.
+- **Micro-Haptic Feedback (`GazePointer.enableHaptics`)**: Subtle tactile vibration feedback on gaze hover enter (`selectionClick`), dwell selection (`lightImpact`), and manual tap/recenter (`mediumImpact`).
+- **VAC (Vergence-Accommodation Conflict) Comfort Constants (`CameraRig`)**: Standardized `comfortDistanceMin` ($1.2\text{ m}$), `comfortDistanceDefault` ($1.8\text{ m}$), and `comfortDistanceMax` ($3.0\text{ m}$) for spatial UI depth.
+- **IPD Calibration & Bounds (`CameraRig`)**: Standardized `minIpd` ($50\text{ mm}$), `defaultIpd` ($64\text{ mm}$), and `maxIpd` ($80\text{ mm}$) with automatic clamping.
+- **Desktop Snap Turning (`DesktopInputDriver`)**: Discrete $30^\circ$ snap turns using keyboard arrow keys for anti-motion-sickness navigation.
+
 ## 1.8.0 — 2026-08-14
 
 ### Added — Joystick-Free Input Stack (5 channels, all optional)

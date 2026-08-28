@@ -20,16 +20,80 @@ class CameraRig implements RotationTarget {
   /// Far clip plane.
   double far;
 
-  /// Inter-pupillary distance in meters.
-  double ipd;
+  /// Minimum recommended IPD in meters (50mm).
+  static const double minIpd = 0.050;
+
+  /// Default adult IPD in meters (64mm).
+  static const double defaultIpd = 0.064;
+
+  /// Maximum recommended IPD in meters (80mm).
+  static const double maxIpd = 0.080;
+
+  /// Minimum recommended distance for UI/interactive elements (1.2m) to prevent VAC eye strain.
+  static const double comfortDistanceMin = 1.2;
+
+  /// Default focal distance for spatial UI (1.8m).
+  static const double comfortDistanceDefault = 1.8;
+
+  /// Maximum recommended distance for readable spatial UI (3.0m).
+  static const double comfortDistanceMax = 3.0;
+
+  double _ipd;
+
+  /// Inter-pupillary distance in meters (clamped between 50mm and 80mm).
+  double get ipd => _ipd;
+  set ipd(double value) => _ipd = value.clamp(minIpd, maxIpd);
+
+  double _yaw = 0.0;
+  double _pitch = 0.0;
+
+  /// Horizontal azimuth angle (radians).
+  double get yaw => _yaw;
+
+  /// Vertical elevation angle (radians).
+  double get pitch => _pitch;
 
   CameraRig({
     Transform3D? headTransform,
     this.fovY = 1.2,
     this.near = 0.01,
     this.far = 1000,
-    this.ipd = 0.064,
-  }) : headTransform = headTransform ?? Transform3D();
+    double ipd = defaultIpd,
+  })  : _ipd = ipd.clamp(minIpd, maxIpd),
+        headTransform = headTransform ?? Transform3D() {
+    _extractYawPitchFromTransform();
+  }
+
+  void _extractYawPitchFromTransform() {
+    final f = headTransform.forward;
+    final horizontalDist = sqrt(f.x * f.x + f.z * f.z);
+    if (horizontalDist > 0.0001) {
+      _yaw = atan2(-f.x, -f.z);
+    }
+    _pitch = asin(f.y.clamp(-0.999, 0.999));
+  }
+
+  void _applyOrientation() {
+    // Stable Horizon (0° Roll):
+    // qYaw rotates around World Vertical Y-Axis (Vector3(0, 1, 0)) -> ground plane is always level!
+    // qPitch rotates around Camera Local Horizontal X-Axis -> elevation clamped to prevent flipping.
+    final qYaw = Quaternion.axisAngle(Vector3(0, 1, 0), _yaw);
+    final qPitch = Quaternion.axisAngle(Vector3(1, 0, 0), _pitch);
+    headTransform.rotation = (qYaw * qPitch)..normalize();
+  }
+
+  /// Sets the absolute gaze angles in radians.
+  void setOrientation(double yaw, double pitch) {
+    _yaw = yaw;
+    _pitch = pitch.clamp(-1.45, 1.45); // Clamped to ±83°
+    _applyOrientation();
+  }
+
+  /// Recenters horizontal gaze heading (Yaw = 0°) while maintaining pitch (elevation).
+  void recenter() {
+    _yaw = 0.0;
+    _applyOrientation();
+  }
 
   // ─── View Matrices ──────────────────────
 
@@ -107,18 +171,33 @@ class CameraRig implements RotationTarget {
   set position(Vector3 v) => headTransform.position = v;
 
   Quaternion get rotation => headTransform.rotation;
-  set rotation(Quaternion q) => headTransform.rotation = q;
+  set rotation(Quaternion q) {
+    headTransform.rotation = q;
+    _extractYawPitchFromTransform();
+  }
 
-  void lookAt(Vector3 target) => headTransform.lookAt(target);
+  void lookAt(Vector3 target) {
+    final dir = (target - position).normalized();
+    final horizontalDist = sqrt(dir.x * dir.x + dir.z * dir.z);
+    if (horizontalDist > 0.0001) {
+      _yaw = atan2(-dir.x, -dir.z);
+    }
+    _pitch = asin(dir.y.clamp(-0.999, 0.999));
+    _applyOrientation();
+  }
 
   @override
-  void rotate(double yaw, double pitch) {
-    headTransform.rotateEuler(yaw, pitch, 0);
+  void rotate(double dYaw, double dPitch) {
+    _yaw += dYaw;
+    _pitch = (_pitch + dPitch).clamp(-1.45, 1.45);
+    _applyOrientation();
   }
 
   @override
   void reset() {
-    headTransform.reset();
+    _yaw = 0.0;
+    _pitch = 0.0;
+    _applyOrientation();
   }
 
   /// Generates a face-tracked holographic projection matrix.

@@ -40,4 +40,9 @@ class VRCamera implements RotationTarget {
     theta = 0;
     phi = 0;
   }
+
+  @override
+  void recenter() {
+    theta = 0;
+  }
 }
