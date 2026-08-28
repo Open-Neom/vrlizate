@@ -10,6 +10,7 @@ import '../camera/camera_rig.dart';
 import '../input/desktop_input.dart';
 import '../input/head_tracker.dart';
 import '../input/gaze_pointer.dart';
+import '../input/inertial_tap_detector.dart';
 import '../rendering/render_pass.dart';
 import '../../interaction/raycast.dart';
 
@@ -30,6 +31,7 @@ class VREngine extends ChangeNotifier {
   HeadTracker? headTracker;
   GazePointer? gazePointer;
   DesktopInputDriver? desktopInput;
+  InertialTapDetector? inertialTapDetector;
   final Raycaster _raycaster = Raycaster();
   Quaternion? _lastCameraRotation;
 
@@ -144,6 +146,27 @@ class VREngine extends ChangeNotifier {
     }
   }
 
+  /// Enables zero-latency temple/visor physical tap detection.
+  void enableInertialTap({
+    VoidCallback? onSingleTap,
+    VoidCallback? onDoubleTap,
+  }) {
+    inertialTapDetector?.dispose();
+    inertialTapDetector = InertialTapDetector(
+      onSingleTap: onSingleTap ?? handleTap,
+      onDoubleTap: onDoubleTap ?? () {
+        headTracker?.recenter();
+        cameraRig.recenter();
+      },
+    )..start();
+  }
+
+  /// Disables inertial tap detector.
+  void disableInertialTap() {
+    inertialTapDetector?.dispose();
+    inertialTapDetector = null;
+  }
+
   void _tick() {
     final now = DateTime.now();
     final dt = now.difference(_lastTime).inMicroseconds / 1000000.0;
@@ -213,6 +236,7 @@ class VREngine extends ChangeNotifier {
     stop();
     _ticker?.dispose();
     headTracker?.dispose();
+    inertialTapDetector?.dispose();
     super.dispose();
   }
 
