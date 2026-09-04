@@ -19,6 +19,9 @@ enum VrInputType {
 
   /// Finger pinch gesture from optical hand tracking.
   pinch,
+
+  /// Continuous 3DoF pointer pose update from a tracked remote.
+  pointerMove,
 }
 
 /// Hardware or software source that originated the input event.

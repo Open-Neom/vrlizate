@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.10.0 — 2026-09-03
+
+### Added — Zero-GC Multimodal Input Arbiter, Reference Gamepad Driver & Open-Source Spec
+- **Zero-GC Multimodal Input Arbiter (`VrInputArbiter`)**:
+  - Preallocated fixed ring buffer pool (64 slots) with synchronous borrow and release semantics ensuring zero garbage collection pressure during 60–120 Hz update loops.
+  - Strict priority arbitration: `touch` / `remotePhone` (maximum) > `gamepad` / `sonar` / `cameraHand` (medium) > `gaze` (base).
+  - Configurable 400ms hysteresis cooldown suppressing base gaze selection while external active inputs are manipulated.
+  - Debug-mode leak detection (`assertNoLeaks`).
+  - Extensible `VrInputDriver` and `VrInputSink` abstractions for decoupled community hardware drivers.
+- **Reference Gamepad Driver (`VrGamepadDriver`)**:
+  - Standardized hardware-agnostic adapter mapping A/B/X/Y buttons, L2/R2 analog triggers, and analog thumbsticks to canonical `VrInputType` events.
+  - Configurable radial deadzones for analog sticks (`stickDeadzone = 0.15`) and triggers (`triggerDeadzone = 0.05`).
+  - Reusable payload maps avoiding per-frame map allocations.
+- **Reference 3DoF Laser Pointer Driver (`VrLaserPointerDriver`)**:
+  - Standardized spatial pointing ray driver for 2nd smartphone remotes and 3DoF controllers.
+  - Computes forward pointing vector `orientation.rotate(Vector3(0, 0, -1))` and emits `VrInputType.pointerMove`.
+  - Maps trigger press/release to canonical `VrInputType.trigger`.
+  - Dynamic `recenter()` establishing the forward yaw reference pose without hardware drift.
+  - Priority overrides via `VrInputPrioritizedDriver` with `medium` arbitration.
+- **Progressive Smartphone VR Open-Source Architecture**:
+  - Bilingual `ARCHITECTURE.md`, `CONTRIBUTING.md`, and updated `README.md` defining Progressive Hardware Tiers (Lite, Standard, Pro) for mobile VR democratization.
+
+### Fixed
+- **Optics & Tracking Stability**:
+  - Fixed `CameraRig` identity matrix reset and IPD bounding.
+  - Corrected bias drift in `HeadTracker`.
+
 ## 1.9.0 — 2026-08-27
 
 ### Added — VR Ergonomics, Horizon Stabilization & Sensor Fusion

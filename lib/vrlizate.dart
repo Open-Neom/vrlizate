@@ -33,6 +33,7 @@ export 'core/camera/vr_camera.dart';
 export 'core/input/controller_state.dart';
 export 'core/input/desktop_input.dart';
 export 'core/input/drivers/vr_gamepad_driver.dart';
+export 'core/input/drivers/vr_laser_pointer_driver.dart';
 export 'core/input/gaze_pointer.dart';
 export 'core/input/hand_state.dart';
 export 'core/input/hand_tracking_driver.dart';

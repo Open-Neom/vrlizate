@@ -50,6 +50,15 @@ abstract interface class VrInputDriver {
   void detach();
 }
 
+/// Optional per-driver priority override.
+///
+/// Most drivers inherit the stable priority of their [VrInputDriver.source].
+/// A specialized driver can implement this interface when the same hardware
+/// source exposes interaction modes with different arbitration semantics.
+abstract interface class VrInputPrioritizedDriver {
+  VrInputPriority get priority;
+}
+
 /// Fixed-capacity pool for [VrInputEvent] instances.
 ///
 /// The pool preallocates all events. Exhaustion throws instead of allocating a
@@ -249,9 +258,12 @@ class VrInputArbiter {
   /// The caller still owns the event and must release pooled events even when
   /// this method returns `false` or a listener throws.
   bool submit(VrInputEvent event) {
+    return _submit(event, priorityOf(event.source));
+  }
+
+  bool _submit(VrInputEvent event, VrInputPriority priority) {
     _ensureAlive();
     final now = _clock();
-    final priority = priorityOf(event.source);
 
     if (event.active && priority != VrInputPriority.base) {
       _lastActiveAt[priority.index] = now;
@@ -308,7 +320,13 @@ class VrInputArbiter {
 
     final registration = _DriverRegistration(
       driver,
-      _BoundInputSink(this, driver.source),
+      _BoundInputSink(
+        this,
+        driver.source,
+        driver is VrInputPrioritizedDriver
+            ? (driver as VrInputPrioritizedDriver).priority
+            : priorityOf(driver.source),
+      ),
     );
     _drivers.add(registration);
     try {
@@ -375,9 +393,10 @@ final class _DriverRegistration {
 final class _BoundInputSink implements VrInputSink {
   final VrInputArbiter _arbiter;
   final VrInputSource _source;
+  final VrInputPriority _priority;
   bool _attached = true;
 
-  _BoundInputSink(this._arbiter, this._source);
+  _BoundInputSink(this._arbiter, this._source, this._priority);
 
   @override
   VrInputEvent acquire({
@@ -406,7 +425,7 @@ final class _BoundInputSink implements VrInputSink {
         'Driver sink is bound to $_source.',
       );
     }
-    return _arbiter.submit(event);
+    return _arbiter._submit(event, _priority);
   }
 
   @override
