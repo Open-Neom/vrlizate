@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vrlizate/vrlizate.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('GazePointer adaptive dwell', () {
     // Note: the first update() that enters a target only registers the
     // target change; the dwell timer accumulates from the next update on.

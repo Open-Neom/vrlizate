@@ -43,23 +43,92 @@ enum VrInputSource {
 
   /// Direct touchscreen touch.
   touch,
+
+  /// Bluetooth, USB, or platform gamepad.
+  gamepad,
+
+  /// Community-provided peripheral without a more specific source.
+  externalPeripheral,
 }
 
 /// Unified spatial input event.
+///
+/// Events can be reused by [VrInputArbiter]'s pool. Consumers must treat an
+/// event received from the arbiter as borrowed memory: read it synchronously
+/// and do not retain it after the callback returns. Code that needs to keep an
+/// event should copy the required scalar values instead.
 class VrInputEvent {
-  final VrInputType type;
-  final VrInputSource source;
-  final String? targetId;
-  final Map<String, dynamic>? data;
-  final DateTime timestamp;
+  VrInputType _type;
+  VrInputSource _source;
+  String? _targetId;
+  Map<String, dynamic>? _data;
+  bool _active;
+  int _timestampMicrosecondsSinceEpoch;
+
+  VrInputType get type => _type;
+  VrInputSource get source => _source;
+  String? get targetId => _targetId;
+  Map<String, dynamic>? get data => _data;
+
+  /// Whether the source is actively manipulated.
+  ///
+  /// A joystick outside its dead zone or a touch-down is active. A centered
+  /// joystick or touch-up is inactive and does not extend arbitration
+  /// hysteresis.
+  bool get active => _active;
+
+  /// Allocation-free timestamp used by high-frequency input paths.
+  int get timestampMicrosecondsSinceEpoch => _timestampMicrosecondsSinceEpoch;
+
+  /// Wall-clock timestamp for compatibility and diagnostics.
+  ///
+  /// Accessing this getter creates a [DateTime]. Hot paths should prefer
+  /// [timestampMicrosecondsSinceEpoch].
+  DateTime get timestamp =>
+      DateTime.fromMicrosecondsSinceEpoch(_timestampMicrosecondsSinceEpoch);
 
   VrInputEvent({
-    required this.type,
-    required this.source,
-    this.targetId,
-    this.data,
+    required VrInputType type,
+    required VrInputSource source,
+    String? targetId,
+    Map<String, dynamic>? data,
+    bool active = true,
     DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
+  }) : _type = type,
+       _source = source,
+       _targetId = targetId,
+       _data = data,
+       _active = active,
+       _timestampMicrosecondsSinceEpoch =
+           (timestamp ?? DateTime.now()).microsecondsSinceEpoch;
+
+  /// Reinitializes this instance for an event pool.
+  ///
+  /// Application code normally uses [VrInputEventPool.acquire] instead of
+  /// calling this directly.
+  void resetForReuse({
+    required VrInputType type,
+    required VrInputSource source,
+    required int timestampMicrosecondsSinceEpoch,
+    String? targetId,
+    Map<String, dynamic>? data,
+    bool active = true,
+  }) {
+    _type = type;
+    _source = source;
+    _targetId = targetId;
+    _data = data;
+    _active = active;
+    _timestampMicrosecondsSinceEpoch = timestampMicrosecondsSinceEpoch;
+  }
+
+  /// Drops references before this event returns to a pool.
+  void clearForReuse() {
+    _targetId = null;
+    _data = null;
+    _active = false;
+    _timestampMicrosecondsSinceEpoch = 0;
+  }
 
   @override
   String toString() =>

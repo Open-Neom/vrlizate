@@ -159,6 +159,7 @@ class HeadTracker {
                   _calibrationSumX += event.x;
                   _calibrationSumY += event.y;
                   _calibrationSamples++;
+                  return;
                 }
 
                 // Dynamic Auto-Calibrating Anti-Drift:
@@ -224,9 +225,15 @@ class HeadTracker {
                   // Fast exponential filter
                   _dampedDYaw = _dampedDYaw * 0.15 + rawDYaw * 0.85;
                   _dampedDPitch = _dampedDPitch * 0.15 + rawDPitch * 0.85;
-                  target.rotate(_dampedDYaw * sensitivity, _dampedDPitch * sensitivity * pitchGain);
+                  target.rotate(
+                    _dampedDYaw * sensitivity,
+                    _dampedDPitch * sensitivity * pitchGain,
+                  );
                 } else {
-                  target.rotate(dYaw * sensitivity, dPitch * sensitivity * pitchGain);
+                  target.rotate(
+                    dYaw * sensitivity,
+                    dPitch * sensitivity * pitchGain,
+                  );
                 }
               });
       return;
@@ -283,6 +290,7 @@ class HeadTracker {
                 _calibrationSumX += event.x;
                 _calibrationSumY += event.y;
                 _calibrationSamples++;
+                return;
               }
               _isolateSendPort?.send([2, event.x, event.y, event.z]);
             });
@@ -326,6 +334,13 @@ class HeadTracker {
           _offsetY,
         ]);
       }
+      _lastTimestamp = null;
+      _yawFused = 0.0;
+      _pitchFused = 0.0;
+      _prevYawFused = null;
+      _prevPitchFused = null;
+      _dampedDYaw = 0.0;
+      _dampedDPitch = 0.0;
       _calibrating = false;
     });
   }

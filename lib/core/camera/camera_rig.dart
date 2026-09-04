@@ -41,8 +41,10 @@ class CameraRig implements RotationTarget {
   double _ipd;
 
   /// Inter-pupillary distance in meters (clamped between 50mm and 80mm).
+  ///
+  /// Zero is accepted explicitly for monoscopic rendering and diagnostics.
   double get ipd => _ipd;
-  set ipd(double value) => _ipd = value.clamp(minIpd, maxIpd);
+  set ipd(double value) => _ipd = _normalizeIpd(value);
 
   double _yaw = 0.0;
   double _pitch = 0.0;
@@ -59,9 +61,14 @@ class CameraRig implements RotationTarget {
     this.near = 0.01,
     this.far = 1000,
     double ipd = defaultIpd,
-  })  : _ipd = ipd.clamp(minIpd, maxIpd),
-        headTransform = headTransform ?? Transform3D() {
+  }) : _ipd = _normalizeIpd(ipd),
+       headTransform = headTransform ?? Transform3D() {
     _extractYawPitchFromTransform();
+  }
+
+  static double _normalizeIpd(double value) {
+    if (value == 0) return 0;
+    return value.clamp(minIpd, maxIpd);
   }
 
   void _extractYawPitchFromTransform() {
@@ -198,6 +205,7 @@ class CameraRig implements RotationTarget {
   void reset() {
     _yaw = 0.0;
     _pitch = 0.0;
+    headTransform.position = Vector3.zero();
     _applyOrientation();
   }
 

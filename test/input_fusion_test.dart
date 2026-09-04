@@ -5,6 +5,8 @@ import 'package:vector_math/vector_math.dart';
 import 'package:vrlizate/vrlizate.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('InputFusion', () {
     test('gaze dwell emits a SelectAction with the target id', () async {
       final gaze = GazePointer(
