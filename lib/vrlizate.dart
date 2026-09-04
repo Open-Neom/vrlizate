@@ -46,6 +46,10 @@ export 'core/input/vr_input_event_bus.dart';
 export 'core/input/wifi_rtt.dart';
 export 'core/input/wifi_sensing.dart';
 
+// ============ Core — Network ============
+export 'core/network/vr_pairing_payload.dart';
+export 'core/network/vr_transport.dart';
+
 // ============ Core — Projection ============
 export 'core/projection/stereoscopic_projection.dart';
 
