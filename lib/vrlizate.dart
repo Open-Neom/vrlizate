@@ -34,6 +34,7 @@ export 'core/input/controller_state.dart';
 export 'core/input/desktop_input.dart';
 export 'core/input/drivers/vr_gamepad_driver.dart';
 export 'core/input/drivers/vr_laser_pointer_driver.dart';
+export 'core/input/drivers/vr_remote_touchpad_driver.dart';
 export 'core/input/gaze_pointer.dart';
 export 'core/input/hand_state.dart';
 export 'core/input/hand_tracking_driver.dart';
@@ -47,7 +48,13 @@ export 'core/input/wifi_rtt.dart';
 export 'core/input/wifi_sensing.dart';
 
 // ============ Core — Network ============
+export 'core/network/vr_controller_protocol.dart';
+export 'core/network/vr_controller_transport.dart';
+export 'core/network/vr_local_socket_transport.dart';
 export 'core/network/vr_pairing_payload.dart';
+export 'core/network/vr_remote_controller_session.dart';
+export 'core/network/vr_remote_imu_controller.dart';
+export 'core/network/vr_remote_pose_predictor.dart';
 export 'core/network/vr_transport.dart';
 
 // ============ Core — Projection ============
@@ -72,6 +79,9 @@ export 'scene/pbr_material.dart';
 export 'scene/scene.dart';
 export 'scene/shadow.dart';
 export 'scene/texture.dart';
+export 'scene/vr_controller_avatar_node.dart';
+export 'scene/vr_controller_arm_model.dart';
+export 'scene/vrlizate_scene.dart';
 export 'scene/hologram_node.dart';
 export 'scene/wifi_radar_node.dart';
 
@@ -103,6 +113,7 @@ export 'interaction/locomotion/walk_in_place.dart';
 export 'spatial_ui/billboard.dart';
 export 'spatial_ui/panel.dart';
 export 'spatial_ui/spatial_button.dart';
+export 'spatial_ui/spatial_navigation_arrow.dart';
 export 'spatial_ui/spatial_text.dart';
 
 // ============ Physics ============
@@ -116,6 +127,7 @@ export 'effects/bloom.dart';
 export 'effects/device_params.dart';
 export 'effects/distortion_mesh.dart';
 export 'effects/fog.dart';
+export 'effects/hybrid_ray_tracer.dart';
 export 'effects/lens_distortion.dart';
 export 'effects/ssao.dart';
 export 'effects/vignette.dart';

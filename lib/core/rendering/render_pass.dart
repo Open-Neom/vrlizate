@@ -3,9 +3,11 @@ import 'dart:ui';
 import 'package:vector_math/vector_math.dart';
 
 import '../../effects/distortion_mesh.dart';
+import '../../scene/light.dart';
 import '../../scene/mesh.dart';
 import '../../scene/node.dart';
 import '../../scene/scene.dart';
+import '../../scene/vrlizate_scene.dart';
 import '../../utils/frustum.dart';
 import '../camera/camera_rig.dart';
 
@@ -36,6 +38,7 @@ class RenderPass {
 
   Image? _lastLeftImage;
   Image? _lastRightImage;
+  int _lastRayTracingRevision = -1;
 
   /// Trigger to skip rendering and warp last frame's cached images directly
   bool useATWFallback = false;
@@ -87,10 +90,13 @@ class RenderPass {
       // Collect renderable nodes
       final opaqueNodes = <Node>[];
       final transparentNodes = <Node>[];
+      final meshNodes = <MeshNode>[];
+      final litMeshes = <LitMeshNode>[];
 
       scene.root.traverse((node) {
         if (!node.visible) return;
-        if (node is! MeshNode) return;
+        if (!node.isRenderable) return;
+        if (node is MeshNode) meshNodes.add(node);
 
         // Frustum culling (own geometry bounds, not the subtree union)
         final cull = frustum.testAabb(node.ownWorldAabb);
@@ -103,14 +109,18 @@ class RenderPass {
         if (node is LitMeshNode) {
           node.lights.clear();
           node.lights.addAll(lights);
+          node.cameraPosition.setFrom(cameraRig.position);
+          litMeshes.add(node);
         }
 
-        if (node.material.isTransparent) {
+        if (node.isTransparent) {
           transparentNodes.add(node);
         } else {
           opaqueNodes.add(node);
         }
       });
+
+      _updateHybridRayTracing(lights, meshNodes, litMeshes);
 
       // Render opaque first (front to back for early-z)
       opaqueNodes.sort((a, b) {
@@ -149,6 +159,58 @@ class RenderPass {
     } finally {
       // Clear global coefficients to avoid polluting other rendering passes
       MeshNode.activeDistortionCoefficients = null;
+    }
+  }
+
+  void _updateHybridRayTracing(
+    List<Light> lights,
+    List<MeshNode> meshes,
+    List<LitMeshNode> litMeshes,
+  ) {
+    final activeScene = scene;
+    if (activeScene is! VrlizateScene ||
+        activeScene.rayTracingMode == VrlizateRayTracingMode.disabled ||
+        activeScene.maxRayQueriesPerFrame <= 0) {
+      for (final mesh in litMeshes) {
+        mesh.directLightVisibility = 1;
+      }
+      return;
+    }
+    if (activeScene.frameRevision == _lastRayTracingRevision) {
+      return;
+    }
+    _lastRayTracingRevision = activeScene.frameRevision;
+
+    Light? primaryLight;
+    for (final light in lights) {
+      if (light.type == LightType.directional ||
+          light.type == LightType.point) {
+        primaryLight = light;
+        break;
+      }
+    }
+    if (primaryLight == null) return;
+
+    for (final mesh in litMeshes) {
+      mesh.directLightVisibility = 1;
+    }
+
+    litMeshes.sort((a, b) {
+      final aDistance = (a.worldPosition - cameraRig.position).length2;
+      final bDistance = (b.worldPosition - cameraRig.position).length2;
+      return aDistance.compareTo(bDistance);
+    });
+    activeScene.rayTracer.resetStats();
+    final budget = activeScene.maxRayQueriesPerFrame.clamp(0, litMeshes.length);
+    for (var index = 0; index < budget; index++) {
+      final receiver = litMeshes[index];
+      receiver.directLightVisibility = activeScene.rayTracer.lightVisibility(
+        receiver: receiver,
+        light: primaryLight,
+        nodes: meshes,
+        maxDistance: activeScene.rayTracingDistance,
+        shadowVisibility: activeScene.shadowVisibility,
+      );
     }
   }
 

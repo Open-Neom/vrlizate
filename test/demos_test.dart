@@ -21,6 +21,11 @@ void main() {
       expect(demo.nodes, isEmpty);
       demo.init();
       expect(demo.nodes, isNotEmpty);
+      expect(
+        demo.nodes.whereType<GridFloor>(),
+        isNotEmpty,
+        reason: 'The compass needs a near-field movement grid.',
+      );
       demo.update(0.016);
       demo.dispose();
       expect(demo.nodes, isEmpty);
@@ -31,6 +36,7 @@ void main() {
       expect(demo.nodes, isEmpty);
       demo.init();
       expect(demo.nodes, isNotEmpty);
+      expect(demo.nodes.whereType<Light>().length, greaterThanOrEqualTo(2));
       demo.update(0.016);
       demo.dispose();
       expect(demo.nodes, isEmpty);
@@ -41,6 +47,9 @@ void main() {
       expect(demo.nodes, isEmpty);
       demo.init();
       expect(demo.nodes, isNotEmpty);
+      expect(demo.starfield.isRenderable, isTrue);
+      expect(demo.hud.isRenderable, isTrue);
+      expect(engine.scene.root.findChild('SOL'), isNotNull);
       demo.update(0.016);
       demo.dispose();
       expect(demo.nodes, isEmpty);
@@ -51,6 +60,8 @@ void main() {
       expect(demo.nodes, isEmpty);
       demo.init();
       expect(demo.nodes, isNotEmpty);
+      expect(engine.scene.root.findChild('cinema_floor'), isNotNull);
+      expect(demo.progressLabel.fontSize, lessThan(1));
       demo.update(0.016);
       demo.dispose();
       expect(demo.nodes, isEmpty);
@@ -61,6 +72,8 @@ void main() {
       expect(demo.nodes, isEmpty);
       demo.init();
       expect(demo.nodes, isNotEmpty);
+      expect(demo.radarNode.isRenderable, isTrue);
+      expect(demo.overlayInfo.fontSize, lessThan(1));
       demo.update(0.016);
       demo.dispose();
       expect(demo.nodes, isEmpty);

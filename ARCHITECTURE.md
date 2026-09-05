@@ -118,6 +118,76 @@ Para añadir un método de entrada:
 Para añadir renderizado o efectos, define primero el comportamiento Lite y haz
 que las mejoras Standard/Pro sean opt-in y medibles.
 
+## Escena 3D moderna y trazado híbrido
+
+Las experiencias nuevas deben construir `VREngine` con `VrlizateScene`. Esta
+clase amplía el grafo `Scene` que usa `MeshNode`, `LitMeshNode`, materiales PBR,
+luces y UI espacial. La clase histórica `VRScene` representa una colección de
+elementos 2D y se conserva únicamente por compatibilidad; no es la base del
+Home ni de los demos de alta calidad.
+
+```text
+VrlizateScene.update
+        │ actualiza matrices y AABB en caché
+        ▼
+RenderPass: culling + orden por profundidad + luces
+        │
+        ├─ rasterización de meshes y UI en cada ojo
+        │
+        └─ HybridRayTracer (presupuesto fijo, una vez por frame)
+             │ rayos hacia la luz primaria
+             ▼
+        visibilidad directa por LitMeshNode
+```
+
+El trazado híbrido es deliberadamente de espacio de objetos: intersecta rayos
+con AABB mundiales y modula la luz directa del objeto receptor. No recorre cada
+píxel ni calcula rebotes, iluminación global o reflejos. Se ejecuta una sola vez
+por revisión de escena para que el ojo izquierdo y el derecho compartan el
+resultado y no dupliquen el costo.
+
+| Perfil de escena | Segmentos de esfera | Rayos máximos por frame | Uso recomendado |
+|---|---:|---:|---|
+| `lite` | 10 | 0 | Teléfonos económicos y control térmico estricto |
+| `standard` | 16 | 18 | Calidad equilibrada para smartphones intermedios |
+| `high` | 24 | 36 | Dispositivos medidos con margen térmico |
+
+Estos son límites, no objetivos obligatorios. `RenderPass` prioriza receptores
+cercanos a la cámara y conserva luz ambiente para que una sombra no vuelva
+ilegible la escena. Una evolución hacia ray tracing por triángulo o por píxel
+requiere BVH, cómputo GPU y perfiles térmicos separados; no debe reemplazar la
+ruta Lite.
+
+## Controlador remoto padre/hijo
+
+El flujo de referencia para dos teléfonos es:
+
+```text
+Hijo: IMU + pantalla              Padre: visor + render
+        │                                 ▲
+VrRemoteImuController                     │
+        │ profile / pose / input          │
+        ▼                                 │
+VrControllerTransport ───────── VrRemoteControllerSession
+                                          ├─ VrLaserPointerDriver
+                                          ├─ VrInputArbiter
+                                          ├─ ControllerState
+                                          └─ VrControllerAvatarNode
+```
+
+- `VrPairingPayload` es una invitación, no un mecanismo de descubrimiento.
+- `VrLocalSocketTransport` ofrece el transporte LAN de referencia y valida el
+  token antes de aceptar perfil, pose o entrada.
+- Los eventos prestados del pool se copian síncronamente a un snapshot antes de
+  cualquier operación asíncrona de red.
+- Los frames tienen secuencia; el padre descarta frames repetidos o atrasados.
+- El avatar Lite usa posición relativa fija. Una distancia de BLE/RTT/UWB o
+  visión es metadato con confianza y no convierte por sí sola el sistema en 6DoF.
+- El acelerómetro se conserva como señal de movimiento; integrarlo dos veces
+  para calcular posición no está permitido en la ruta Lite.
+- TCP local autentica pero no cifra. BLE, Wi-Fi Direct, WebRTC o TLS pueden
+  implementar el mismo contrato cuando el entorno requiera otra seguridad.
+
 ---
 
 ## English
@@ -164,6 +234,40 @@ allocating. Drivers must also reuse their own payload buffers at 60–120 Hz.
 The stream-based `VrInputEventBus` remains available for compatible,
 low-frequency asynchronous flows. The synchronous arbiter is the preferred
 per-frame path.
+
+## Parent/child remote controller
+
+The child publishes its `VrControllerProfile` and sequenced
+`VrRemotePoseFrame`s through `VrControllerTransport`. The reference
+`VrLocalSocketTransport` authenticates a one-time token and synchronously owns a
+snapshot of any pooled event before asynchronous I/O. On the visor,
+`VrRemoteControllerSession` drops stale frames, feeds `VrLaserPointerDriver`,
+updates `ControllerState`, and maintains `VrControllerAvatarNode`.
+
+Lite deliberately uses a stable head-relative avatar position. Accelerometer
+samples are transported but never double-integrated into translation. Optional
+range must identify its measurement source and confidence; range plus
+orientation is not a complete 3D position. The reference LAN socket is
+authenticated but unencrypted, so untrusted networks require a secure transport.
+
+## Modern 3D scene and hybrid tracing
+
+New experiences should pass `VrlizateScene` to `VREngine`. It is the modern
+mesh scene graph with PBR materials, lights, spatial UI, fog, and culling. The
+historical `VRScene` is a compatibility API for 2D particle-style elements and
+is not the foundation of the high-quality Home or demos.
+
+Hybrid tracing remains an object-space enhancement to rasterization. Once per
+scene revision, `RenderPass` casts a fixed number of CPU rays from the nearest
+lit receivers toward the primary light and intersects cached world AABBs. Both
+stereo eyes reuse the resulting direct-light visibility. The default budgets
+are 0/18/36 rays per frame and 10/16/24 sphere segments for Lite, Standard, and
+High respectively.
+
+This is intentionally not per-pixel path tracing: it provides bounded object
+shadows, not global illumination or ray-traced reflections. Triangle- or
+pixel-level tracing would require a BVH, GPU compute, and a separately profiled
+thermal tier while preserving the Lite raster path.
 
 ## Extension rules
 

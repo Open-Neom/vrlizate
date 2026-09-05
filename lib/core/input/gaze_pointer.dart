@@ -122,7 +122,19 @@ class GazePointer {
   }
 
   /// Call each frame with the currently gazed node ID (or null).
-  void update(double dt, String? hitNodeId) {
+  ///
+  /// Set [dwellEnabled] to false while another input source suppresses auto
+  /// selection. Hover and explicit taps remain available, but dwell progress
+  /// is discarded. Re-enabling starts a fresh dwell even on the same target.
+  void update(double dt, String? hitNodeId, {bool dwellEnabled = true}) {
+    if (!dwellEnabled) {
+      _gazeTimer = 0;
+      _selected = false;
+      _graceSavedGazeTimer = 0;
+      dwellProgress = 0;
+      final target = _gazeTargetId;
+      if (target != null) onDwellProgress?.call(target, 0);
+    }
     // Grace period: brief loss of the target preserves the dwell timer.
     if (hitNodeId == null && _gazeTargetId != null && !_selected) {
       if (_graceTargetId != _gazeTargetId) {
@@ -171,6 +183,8 @@ class GazePointer {
 
     _graceTargetId = null;
     _graceTimer = 0;
+
+    if (!dwellEnabled) return;
 
     _gazeTimer += dt;
     dwellProgress = (_gazeTimer / _effectiveDwell).clamp(0.0, 1.0);

@@ -15,6 +15,16 @@ class MockCanvas extends Fake implements Canvas {
   }
 
   @override
+  void drawRRect(RRect rrect, Paint paint) {
+    operations.add('drawRRect');
+  }
+
+  @override
+  void drawParagraph(Paragraph paragraph, Offset offset) {
+    operations.add('drawParagraph');
+  }
+
+  @override
   void translate(double dx, double dy) {
     operations.add('translate: $dx, $dy');
   }
@@ -53,6 +63,11 @@ class MockCanvas extends Fake implements Canvas {
     bool doAntiAlias = true,
   }) {
     operations.add('clipRect: $rect');
+  }
+
+  @override
+  void clipRRect(RRect rrect, {bool doAntiAlias = true}) {
+    operations.add('clipRRect');
   }
 }
 
@@ -131,6 +146,36 @@ void main() {
       expect(draws[0], contains('paintColor=ffff0000'));
       // Green (transparent) should be rendered second
       expect(draws[1], contains('paintColor=7f00ff00'));
+    });
+
+    test('spatial panels and text participate in the render pass', () {
+      final panel = SpatialPanel(
+        cameraRig: cameraRig,
+        panelWidth: 2,
+        panelHeight: 1,
+      );
+      panel.transform.position = Vector3(0, 0, -3);
+      panel.onTransformChanged();
+
+      final text = SpatialText(
+        cameraRig: cameraRig,
+        text: 'HOME',
+        fontSize: 0.3,
+      );
+      text.transform.position = Vector3(0, 0, -2.9);
+      text.onTransformChanged();
+
+      scene.add(panel);
+      scene.add(text);
+      scene.update(0.01);
+
+      renderPass.renderMono(mockCanvas, const Size(800, 600));
+
+      expect(panel.isRenderable, isTrue);
+      expect(panel.isTransparent, isTrue);
+      expect(text.isRenderable, isTrue);
+      expect(text.isTransparent, isTrue);
+      expect(renderPass.renderedCount, equals(2));
     });
 
     test('transparent nodes are sorted back-to-front', () {
@@ -288,6 +333,40 @@ void main() {
 
       // The drawn vertices object must be different (and not null) due to different warped coordinates!
       expect(drawsDistorted.first, isNot(equals(drawsNormal.first)));
+    });
+
+    test('hybrid ray tracing applies bounded object-space shadows', () {
+      final qualityScene = VrlizateScene(
+        quality: VrlizateSceneQuality.standard,
+        rayTracingMode: VrlizateRayTracingMode.hybridObjectSpace,
+        maxRayQueriesPerFrame: 4,
+        shadowVisibility: 0.2,
+      );
+      final sunlight = Light.directional(
+        direction: Vector3(0, -1, 0),
+        intensity: 1,
+      );
+      final receiver = LitMeshNode(
+        name: 'shadow-receiver',
+        geometry: CubeGeometry(size: 1),
+      )..transform.position = Vector3(0, -1, -4);
+      final blocker = MeshNode(
+        name: 'light-blocker',
+        geometry: CubeGeometry(size: 1),
+      )..transform.position = Vector3(0, 1, -4);
+
+      qualityScene
+        ..add(sunlight)
+        ..add(receiver)
+        ..add(blocker)
+        ..update(0.01);
+      final qualityPass = RenderPass(scene: qualityScene, cameraRig: cameraRig);
+
+      qualityPass.renderMono(mockCanvas, const Size(800, 600));
+
+      expect(qualityScene.rayTracer.raysCast, equals(1));
+      expect(qualityScene.rayTracer.hits, equals(1));
+      expect(receiver.directLightVisibility, closeTo(0.2, 1e-9));
     });
   });
 }

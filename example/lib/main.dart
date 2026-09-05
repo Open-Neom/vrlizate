@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -20,7 +21,14 @@ void main() {
   runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: _App()));
 }
 
-enum DemoType { grid, physics, space, cinema, radar }
+enum AppRoute { home, grid, physics, space, cinema, radar }
+
+class _HomeAction {
+  final String label;
+  final VoidCallback onPress;
+
+  const _HomeAction(this.label, this.onPress);
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Zone detection constants (from Meta/Google VR research)
@@ -57,9 +65,10 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
   final _repaint = _Notifier();
 
-  // Active Demo management
-  late VRDemo _activeDemo;
-  DemoType _currentDemoType = DemoType.grid;
+  // Spatial route management
+  VRDemo? _activeDemo;
+  AppRoute _currentRoute = AppRoute.home;
+  final List<AppRoute> _routeHistory = [];
   SpatialText? _statsLabel;
 
   // Step detection
@@ -68,216 +77,445 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
   bool _rising = false;
   int _lastStep = 0;
 
+  bool get _supportsMotionSensors =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
   @override
   void initState() {
     super.initState();
-    engine = VREngine();
+    engine = VREngine(
+      scene: VrlizateScene(
+        quality: VrlizateSceneQuality.high,
+        rayTracingMode: VrlizateRayTracingMode.hybridObjectSpace,
+        maxRayQueriesPerFrame: 24,
+      ),
+    );
     engine.cameraRig.position = Vector3(0, 0, 0);
     engine.cameraRig.lookAt(Vector3(0, 0, -1));
     engine.cameraRig.far = 150;
 
-    // Load first demo (original grid)
-    _activeDemo = GridDemo(engine);
-    _activeDemo.init();
-    _buildDashboard();
-
-    _accelSub = accelerometerEventStream(
-      samplingPeriod: const Duration(milliseconds: 20),
-    ).listen(_onAccel);
+    _buildHome();
+    _buildHomeBar();
 
     engine.onUpdate = _animate;
-    engine.enableHeadTracking(sensitivity: 0.025);
+    if (_supportsMotionSensors) {
+      _accelSub = accelerometerEventStream(
+        samplingPeriod: const Duration(milliseconds: 20),
+      ).listen(_onAccel);
+      // The current tracker is calibrated in radians at 1:1 scale. Values
+      // tuned for the pre-1.6 attenuated tracker make the menu feel fixed.
+      engine.enableHeadTracking();
+    }
     engine.enableGazePointer(dwellDuration: 1.5);
     engine.start();
 
     _ticker = createTicker((_) => _repaint.notify())..start();
   }
 
-  void _switchDemo(DemoType type) {
-    _activeDemo.dispose();
-    engine.scene.clear();
+  void _navigateTo(
+    AppRoute route, {
+    bool rememberCurrent = true,
+    bool forceRebuild = false,
+  }) {
+    if (route == _currentRoute && !forceRebuild) return;
 
-    _currentDemoType = type;
-    switch (type) {
-      case DemoType.grid:
-        _activeDemo = GridDemo(engine);
-        break;
-      case DemoType.physics:
-        _activeDemo = PhysicsPlaygroundDemo(engine);
-        break;
-      case DemoType.space:
-        _activeDemo = SpaceFlightDemo(engine);
-        break;
-      case DemoType.cinema:
-        _activeDemo = VRCinemaDemo(engine);
-        break;
-      case DemoType.radar:
-        _activeDemo = WifiRadarDemo(engine);
-        break;
+    if (rememberCurrent && route != _currentRoute) {
+      _routeHistory.add(_currentRoute);
     }
 
-    _activeDemo.init();
-    _buildDashboard();
+    _activeDemo?.dispose();
+    _activeDemo = null;
+    engine.scene.clear();
+    _statsLabel = null;
+    _currentRoute = route;
+
+    // Every spatial route starts from a predictable, comfortable origin.
+    engine.cameraRig.position = Vector3.zero();
+    engine.cameraRig.recenter();
+
+    if (route == AppRoute.home) {
+      _buildHome();
+    } else {
+      _activeDemo = _createDemo(route)..init();
+      _buildBackArrow();
+    }
+
+    _buildHomeBar();
+    engine.gazePointer?.resetAdaptation();
+  }
+
+  VRDemo _createDemo(AppRoute route) {
+    return switch (route) {
+      AppRoute.grid => GridDemo(engine),
+      AppRoute.physics => PhysicsPlaygroundDemo(engine),
+      AppRoute.space => SpaceFlightDemo(engine),
+      AppRoute.cinema => VRCinemaDemo(engine),
+      AppRoute.radar => WifiRadarDemo(engine),
+      AppRoute.home => throw StateError('Home is not a VR demo.'),
+    };
+  }
+
+  void _goBack() {
+    if (_routeHistory.isEmpty) {
+      _navigateTo(AppRoute.home, rememberCurrent: false);
+      return;
+    }
+
+    final previous = _routeHistory.removeLast();
+    _navigateTo(previous, rememberCurrent: false);
   }
 
   void _rebuildAll() {
-    _switchDemo(_currentDemoType);
+    _navigateTo(_currentRoute, rememberCurrent: false, forceRebuild: true);
   }
 
-  void _buildDashboard() {
-    final dashboardRoot = Node(name: 'dashboard_root');
-    // Place the dashboard floating to the left of the center vision
-    dashboardRoot.transform.position = Vector3(-3.0, 0.6, -4.5);
-    dashboardRoot.onTransformChanged();
-    engine.scene.add(dashboardRoot);
+  void _buildHome() {
+    engine.scene.backgroundColor = const Color(0xFF07111F);
+    engine.scene.fogDensity = 0.04;
+    engine.scene.fogColor = const Color(0xFF07111F);
 
-    // Background Panel behind dashboard
-    final bgPanel = SpatialPanel(
-      cameraRig: engine.cameraRig,
-      panelWidth: 2.2,
-      panelHeight: 2.7,
-      backgroundColor: const Color(0xEE0B1329),
-      borderColor: const Color(0xFF1E293B),
-      borderWidth: 2.0,
-      cornerRadius: 12.0,
-    );
-    bgPanel.transform.position = Vector3(0, 0, -0.05);
-    bgPanel.onTransformChanged();
-    dashboardRoot.addChild(bgPanel);
+    _buildHomeEnvironment();
 
-    // Dashboard Title
     final title = SpatialText(
       cameraRig: engine.cameraRig,
-      text: 'VRLIZATE 1.4.0 DASHBOARD',
-      fontSize: 1.8,
+      text: 'VRLIZATE  |  HOME ESPACIAL',
+      fontSize: 0.46,
       color: const Color(0xFF00FFCC),
       fontWeight: FontWeight.bold,
     );
-    title.transform.position = Vector3(0, 1.15, 0);
+    title.transform.position = Vector3(0, 1.48, -4.0);
     title.onTransformChanged();
-    dashboardRoot.addChild(title);
+    engine.scene.add(title);
 
-    // 1. Grid Demo Selector Button
-    _createDashboardButton(
-      dashboardRoot,
-      label: '1. Grid Demo',
-      position: Vector3(-0.5, 0.72, 0),
-      onPress: () => _switchDemo(DemoType.grid),
+    final subtitle = SpatialText(
+      cameraRig: engine.cameraRig,
+      text: 'Camina para acercarte, desliza para mirar y toca para abrir',
+      fontSize: 0.20,
+      color: const Color(0xFF94A3B8),
+    );
+    subtitle.transform.position = Vector3(0, 1.22, -4.0);
+    subtitle.onTransformChanged();
+    engine.scene.add(subtitle);
+
+    _createHomeScreen(
+      name: 'home_screen_explore',
+      title: 'EXPLORAR',
+      subtitle: 'Escenas y movimiento',
+      position: Vector3(-1.62, 0.12, -4.15),
+      accent: const Color(0xFF38BDF8),
+      actions: [
+        _HomeAction('GRID 3D', () => _navigateTo(AppRoute.grid)),
+        _HomeAction('VUELO ESPACIAL', () => _navigateTo(AppRoute.space)),
+      ],
     );
 
-    // 2. Physics Selector Button
-    _createDashboardButton(
-      dashboardRoot,
-      label: '2. Physics',
-      position: Vector3(0.5, 0.72, 0),
-      onPress: () => _switchDemo(DemoType.physics),
+    _createHomeScreen(
+      name: 'home_screen_play',
+      title: 'EXPERIENCIAS',
+      subtitle: 'Interaccion y medios',
+      position: Vector3(0, 0.18, -4.0),
+      accent: const Color(0xFFA78BFA),
+      actions: [
+        _HomeAction('FISICA', () => _navigateTo(AppRoute.physics)),
+        _HomeAction('CINE VR', () => _navigateTo(AppRoute.cinema)),
+      ],
     );
 
-    // 3. Space Flight Selector Button
-    _createDashboardButton(
-      dashboardRoot,
-      label: '3. Space Flight',
-      position: Vector3(-0.5, 0.32, 0),
-      onPress: () => _switchDemo(DemoType.space),
-    );
-
-    // 4. VR Cinema Selector Button
-    _createDashboardButton(
-      dashboardRoot,
-      label: '4. VR Cinema',
-      position: Vector3(0.5, 0.32, 0),
-      onPress: () => _switchDemo(DemoType.cinema),
-    );
-
-    // 5. WiFi CSI Radar Selector Button
-    _createDashboardButton(
-      dashboardRoot,
-      label: '5. WiFi CSI Radar',
-      position: Vector3(-0.5, -0.08, 0),
-      onPress: () => _switchDemo(DemoType.radar),
-    );
-
-    // Toggle Lens Distortion Button
     final distState = engine.renderPass.enableLensDistortion ? 'ON' : 'OFF';
-    _createDashboardButton(
-      dashboardRoot,
-      label: 'Lens Dist: $distState',
-      position: Vector3(0.5, -0.08, 0),
-      onPress: () {
-        engine.renderPass.enableLensDistortion =
-            !engine.renderPass.enableLensDistortion;
-        _rebuildAll();
-      },
-    );
-
-    // Toggle Chromatic Aberration Button
     final chromaState = engine.renderPass.enableChromaticAberration
         ? 'ON'
         : 'OFF';
-    _createDashboardButton(
-      dashboardRoot,
-      label: 'Chromatic: $chromaState',
-      position: Vector3(-0.5, -0.48, 0),
-      onPress: () {
-        engine.renderPass.enableChromaticAberration =
-            !engine.renderPass.enableChromaticAberration;
-        _rebuildAll();
-      },
-    );
-
-    // FSR Scale Button
     final fsrScale = engine.renderPass.fsrScale;
-    _createDashboardButton(
-      dashboardRoot,
-      label: 'FSR Scale: ${fsrScale.toStringAsFixed(2)}x',
-      position: Vector3(0.5, -0.48, 0),
-      onPress: () {
-        final current = engine.renderPass.fsrScale;
-        if (current == 1.0) {
-          engine.renderPass.fsrScale = 0.75;
-        } else if (current == 0.75) {
-          engine.renderPass.fsrScale = 0.5;
-        } else {
-          engine.renderPass.fsrScale = 1.0;
-        }
-        _rebuildAll();
-      },
+    _createHomeScreen(
+      name: 'home_screen_system',
+      title: 'SISTEMA',
+      subtitle: 'Conexion y calidad',
+      position: Vector3(1.62, 0.12, -4.15),
+      accent: const Color(0xFF34D399),
+      actions: [
+        _HomeAction('RADAR WIFI', () => _navigateTo(AppRoute.radar)),
+        _HomeAction('LENTE: $distState', () {
+          engine.renderPass.enableLensDistortion =
+              !engine.renderPass.enableLensDistortion;
+          _rebuildAll();
+        }),
+        _HomeAction('CROMA: $chromaState', () {
+          engine.renderPass.enableChromaticAberration =
+              !engine.renderPass.enableChromaticAberration;
+          _rebuildAll();
+        }),
+        _HomeAction('FSR: ${fsrScale.toStringAsFixed(2)}x', () {
+          final current = engine.renderPass.fsrScale;
+          engine.renderPass.fsrScale = switch (current) {
+            1.0 => 0.75,
+            0.75 => 0.5,
+            _ => 1.0,
+          };
+          _rebuildAll();
+        }),
+      ],
     );
-
-    // Live Metrics HUD
-    _statsLabel = SpatialText(
-      cameraRig: engine.cameraRig,
-      text: 'FPS: 0.0 | Frame: 0.0ms\nRendered: 0 | Culled: 0',
-      fontSize: 1.4,
-      color: const Color(0xFF94A3B8),
-    );
-    _statsLabel!.transform.position = Vector3(0, -0.98, 0);
-    _statsLabel!.onTransformChanged();
-    dashboardRoot.addChild(_statsLabel!);
   }
 
-  void _createDashboardButton(
+  void _buildHomeEnvironment() {
+    engine.scene.add(Light.ambient(intensity: 0.24));
+    engine.scene.add(
+      Light.directional(
+        direction: Vector3(-0.4, -1, -0.5),
+        color: const Color(0xFFD9F7FF),
+        intensity: 1.1,
+      ),
+    );
+
+    final floor = LitMeshNode(
+      name: 'home_floor',
+      geometry: PlaneGeometry(width: 18, height: 22, segW: 4, segH: 5),
+      material: PBRMaterial(
+        color: const Color(0xFF101D31),
+        metallic: 0.45,
+        roughness: 0.38,
+      ),
+    );
+    floor.transform.position = Vector3(0, -1.5, -5);
+    floor.onTransformChanged();
+    engine.scene.add(floor);
+
+    for (var index = -4; index <= 4; index++) {
+      final guide = LitMeshNode(
+        name: 'home_floor_guide_$index',
+        geometry: CubeGeometry(),
+        material: VRMaterial(
+          color: const Color(0xFF164E63),
+          emissive: const Color(0xFF0E7490),
+          opacity: 0.72,
+        ),
+      );
+      guide.transform.position = Vector3(index * 0.75, -1.47, -5.2);
+      guide.transform.scale = Vector3(0.018, 0.015, 8);
+      guide.onTransformChanged();
+      engine.scene.add(guide);
+    }
+  }
+
+  void _createHomeScreen({
+    required String name,
+    required String title,
+    required String subtitle,
+    required Vector3 position,
+    required Color accent,
+    required List<_HomeAction> actions,
+  }) {
+    final screen = Node(name: name);
+    screen.transform.position = position;
+    screen.onTransformChanged();
+    engine.scene.add(screen);
+
+    _addScreenFrame(screen, name: name, accent: accent);
+
+    final surface = SpatialPanel(
+      name: '${name}_surface',
+      cameraRig: engine.cameraRig,
+      panelWidth: 1.42,
+      panelHeight: 1.92,
+      backgroundColor: const Color(0xF20F1D32),
+      borderColor: accent,
+      borderWidth: 2.4,
+      cornerRadius: 14,
+    );
+    surface.transform.position = Vector3(0, 0, -0.08);
+    surface.onTransformChanged();
+    screen.addChild(surface);
+
+    final heading = SpatialText(
+      cameraRig: engine.cameraRig,
+      text: title,
+      fontSize: 0.30,
+      color: accent,
+      fontWeight: FontWeight.bold,
+    );
+    heading.transform.position = Vector3(0, 0.72, 0);
+    heading.onTransformChanged();
+    screen.addChild(heading);
+
+    final caption = SpatialText(
+      cameraRig: engine.cameraRig,
+      text: subtitle,
+      fontSize: 0.17,
+      color: const Color(0xFF94A3B8),
+    );
+    caption.transform.position = Vector3(0, 0.48, 0);
+    caption.onTransformChanged();
+    screen.addChild(caption);
+
+    final gap = actions.length > 2 ? 0.32 : 0.48;
+    final firstY = actions.length > 2 ? 0.25 : 0.18;
+    for (var index = 0; index < actions.length; index++) {
+      final action = actions[index];
+      _createSpatialButton(
+        screen,
+        name: '${name}_action_$index',
+        label: action.label,
+        position: Vector3(0, firstY - gap * index, 0),
+        width: 1.12,
+        height: actions.length > 2 ? 0.24 : 0.32,
+        accent: accent,
+        onPress: action.onPress,
+      );
+    }
+  }
+
+  void _addScreenFrame(
+    Node screen, {
+    required String name,
+    required Color accent,
+  }) {
+    final frameMaterial = PBRMaterial(
+      color: accent,
+      emissive: accent.withValues(alpha: 0.3),
+      metallic: 0.82,
+      roughness: 0.2,
+    );
+    final back = LitMeshNode(
+      name: '${name}_3d_back',
+      geometry: CubeGeometry(),
+      material: PBRMaterial(
+        color: const Color(0xFF0A1220),
+        metallic: 0.55,
+        roughness: 0.32,
+      ),
+    );
+    back.transform.position = Vector3(0, 0, -0.12);
+    back.transform.scale = Vector3(1.52, 2.02, 0.10);
+    back.onTransformChanged();
+    screen.addChild(back);
+
+    void addBar(String suffix, Vector3 position, Vector3 scale) {
+      final bar = LitMeshNode(
+        name: '${name}_frame_$suffix',
+        geometry: CubeGeometry(),
+        material: frameMaterial,
+      );
+      bar.transform.position = position;
+      bar.transform.scale = scale;
+      bar.onTransformChanged();
+      screen.addChild(bar);
+    }
+
+    addBar('top', Vector3(0, 1.0, -0.02), Vector3(1.58, 0.055, 0.10));
+    addBar('bottom', Vector3(0, -1.0, -0.02), Vector3(1.58, 0.055, 0.10));
+    addBar('left', Vector3(-0.76, 0, -0.02), Vector3(0.055, 2.0, 0.10));
+    addBar('right', Vector3(0.76, 0, -0.02), Vector3(0.055, 2.0, 0.10));
+  }
+
+  void _buildBackArrow() {
+    final arrow = SpatialNavigationArrow(
+      name: 'demo_back_arrow',
+      transform: Transform3D(
+        position: Vector3(-1.28, 0.92, -2.8),
+        scale: Vector3.all(0.72),
+      ),
+      onPress: (_) => _goBack(),
+    );
+    engine.scene.add(arrow);
+
+    final label = SpatialText(
+      cameraRig: engine.cameraRig,
+      text: 'ATRAS',
+      fontSize: 0.18,
+      color: const Color(0xFFBAE6FD),
+      fontWeight: FontWeight.bold,
+    );
+    label.transform.position = Vector3(-1.02, 0.56, -2.82);
+    label.onTransformChanged();
+    engine.scene.add(label);
+  }
+
+  void _buildHomeBar() {
+    final bar = Node(name: 'home_bar');
+    bar.transform.position = Vector3(0, -1.03, -2.9);
+    bar.onTransformChanged();
+    engine.scene.add(bar);
+
+    final surface = SpatialPanel(
+      name: 'home_bar_surface',
+      cameraRig: engine.cameraRig,
+      panelWidth: 3.55,
+      panelHeight: 0.66,
+      backgroundColor: const Color(0xF20B1324),
+      borderColor: const Color(0xFF334155),
+      borderWidth: 2,
+      cornerRadius: 18,
+    );
+    surface.transform.position = Vector3(0, 0, -0.08);
+    surface.onTransformChanged();
+    bar.addChild(surface);
+
+    const destinations = <(AppRoute, String)>[
+      (AppRoute.home, 'HOME'),
+      (AppRoute.grid, 'GRID'),
+      (AppRoute.physics, 'FISICA'),
+      (AppRoute.space, 'VUELO'),
+      (AppRoute.cinema, 'CINE'),
+      (AppRoute.radar, 'RADAR'),
+    ];
+    for (var index = 0; index < destinations.length; index++) {
+      final (route, label) = destinations[index];
+      _createSpatialButton(
+        bar,
+        name: 'home_bar_${route.name}',
+        label: label,
+        position: Vector3(-1.4 + index * 0.56, 0.10, 0),
+        width: 0.49,
+        height: 0.26,
+        accent: const Color(0xFF22D3EE),
+        selected: route == _currentRoute,
+        onPress: () => _navigateTo(route),
+      );
+    }
+
+    _statsLabel = SpatialText(
+      cameraRig: engine.cameraRig,
+      text: 'FPS 0.0  |  0.0 ms  |  ruta: ${_currentRoute.name}',
+      fontSize: 0.13,
+      color: const Color(0xFF94A3B8),
+    );
+    _statsLabel!.transform.position = Vector3(0, -0.20, 0);
+    _statsLabel!.onTransformChanged();
+    bar.addChild(_statsLabel!);
+  }
+
+  void _createSpatialButton(
     Node parent, {
+    required String name,
     required String label,
     required Vector3 position,
+    required double width,
+    required double height,
+    required Color accent,
     required VoidCallback onPress,
+    bool selected = false,
   }) {
     final btn = SpatialButton(
-      name: 'dash_btn_${label.replaceAll(' ', '_')}',
+      name: name,
       transform: Transform3D(
         position: position,
-        scale: Vector3(0.95, 0.3, 0.05),
+        scale: Vector3(width, height, 0.05),
       ),
       label: label,
       panel: SpatialPanel(
         cameraRig: engine.cameraRig,
-        panelWidth: 0.95,
-        panelHeight: 0.3,
-        backgroundColor: const Color(0xDD1E293B),
-        borderColor: const Color(0xFF334155),
+        panelWidth: width,
+        panelHeight: height,
+        borderColor: accent,
         borderWidth: 1.5,
         cornerRadius: 6.0,
       ),
+      idleColor: selected ? accent : const Color(0xEB1E293B),
+      hoverColor: accent,
+      pressColor: const Color(0xFFFFFFFF),
+      labelColor: selected ? const Color(0xFF07111F) : const Color(0xFFFFFFFF),
       onPress: (_) => onPress(),
     );
     parent.addChild(btn);
@@ -293,7 +531,11 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
       if (now - _lastStep >= 300) {
         _lastStep = now;
         final f = engine.cameraRig.headTransform.forward;
-        engine.cameraRig.position += (Vector3(f.x, 0, f.z)..normalize()) * 0.4;
+        final walkingDirection = Vector3(f.x, 0, f.z);
+        if (walkingDirection.length2 > 0.0001) {
+          walkingDirection.normalize();
+          engine.cameraRig.position += walkingDirection * 0.4;
+        }
       }
       _rising = false;
     }
@@ -302,14 +544,13 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
 
   // ─── Animation Loop ───
   void _animate(double dt) {
-    // Update the active VR demo state
-    _activeDemo.update(dt);
+    _activeDemo?.update(dt);
 
-    // Update real-time performance indicators on the dashboard
     if (_statsLabel != null) {
       _statsLabel!.text =
-          'FPS: ${engine.fps.toStringAsFixed(1)} | Frame: ${engine.frameTimeMs.toStringAsFixed(1)}ms\n'
-          'Rendered Nodes: ${engine.renderedCount} | Culled: ${engine.culledCount}';
+          'FPS ${engine.fps.toStringAsFixed(1)}  |  '
+          '${engine.frameTimeMs.toStringAsFixed(1)} ms  |  '
+          'ruta: ${_currentRoute.name}';
     }
   }
 
@@ -317,7 +558,7 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
   void dispose() {
     _accelSub?.cancel();
     _ticker.dispose();
-    _activeDemo.dispose();
+    _activeDemo?.dispose();
     engine.dispose();
     super.dispose();
   }
@@ -327,9 +568,25 @@ class _AppState extends State<_App> with SingleTickerProviderStateMixin {
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
+        onPanUpdate: (details) {
+          final tracker = engine.headTracker;
+          if (tracker != null) {
+            tracker.applyTouchDelta(details.delta.dx, details.delta.dy);
+          } else {
+            engine.cameraRig.rotate(
+              -details.delta.dx * 0.005,
+              -details.delta.dy * 0.005,
+            );
+          }
+        },
+        onDoubleTap: () {
+          engine.headTracker?.recenter();
+          engine.cameraRig.recenter();
+        },
         onTap: () {
-          if (_activeDemo is PhysicsPlaygroundDemo) {
-            (_activeDemo as PhysicsPlaygroundDemo).handleTap();
+          final demo = _activeDemo;
+          if (demo is PhysicsPlaygroundDemo) {
+            demo.handleTap();
           } else {
             engine.handleTap();
           }

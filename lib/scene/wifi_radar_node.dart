@@ -19,6 +19,12 @@ class WifiRadarNode extends Node {
   });
 
   @override
+  bool get isRenderable => true;
+
+  @override
+  bool get isTransparent => true;
+
+  @override
   void onRender(Canvas canvas, Matrix4 viewProjection) {
     if (!visible || !showGrid) return;
 
@@ -80,9 +86,7 @@ class WifiRadarNode extends Node {
     final ndcX = clip.x / w;
     final ndcY = clip.y / w;
 
-    // Convert NDC to screen-ish coordinates (width 800, height 600 viewport)
-    final x = (ndcX + 1.0) * 400.0;
-    final y = (1.0 - ndcY) * 300.0;
-    return Offset(x, y);
+    // RenderPass already maps NDC to the active eye viewport.
+    return Offset(ndcX, ndcY);
   }
 }

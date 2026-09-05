@@ -140,10 +140,19 @@ class VREngine extends ChangeNotifier {
   /// and propagates it to the gazed interactive target.
   void handleTap() {
     if (gazePointer != null) {
-      final ray = gazePointer!.ray;
-      final hit = _raycaster.castNearest(ray, scene.root);
+      final hit = _nearestPointableHit();
       gazePointer!.triggerTap(hit);
     }
+  }
+
+  RaycastHit? _nearestPointableHit() {
+    final pointer = gazePointer;
+    if (pointer == null) return null;
+
+    for (final hit in _raycaster.cast(pointer.ray, scene.root)) {
+      if (hit.node.pointable != null) return hit;
+    }
+    return null;
   }
 
   /// Enables zero-latency temple/visor physical tap detection.
@@ -154,10 +163,12 @@ class VREngine extends ChangeNotifier {
     inertialTapDetector?.dispose();
     inertialTapDetector = InertialTapDetector(
       onSingleTap: onSingleTap ?? handleTap,
-      onDoubleTap: onDoubleTap ?? () {
-        headTracker?.recenter();
-        cameraRig.recenter();
-      },
+      onDoubleTap:
+          onDoubleTap ??
+          () {
+            headTracker?.recenter();
+            cameraRig.recenter();
+          },
     )..start();
   }
 
@@ -202,9 +213,20 @@ class VREngine extends ChangeNotifier {
 
     // Update gaze pointer and interactables if active
     if (gazePointer != null) {
-      final ray = gazePointer!.ray;
-      final hit = _raycaster.castNearest(ray, scene.root);
-      gazePointer!.update(dt, hit?.node.name);
+      final pointer = gazePointer!;
+      final hit = _nearestPointableHit();
+      final progressBeforeUpdate = pointer.dwellProgress;
+      pointer.update(dt, hit?.node.name);
+
+      // Dwell selection activates the same Pointable used by a physical tap.
+      if (hit != null &&
+          progressBeforeUpdate < 1 &&
+          pointer.dwellProgress >= 1) {
+        hit.node.pointable?.press(hit);
+        Future.delayed(const Duration(milliseconds: 100), () {
+          hit.node.pointable?.release();
+        });
+      }
 
       // Traversal to update Pointable hover states
       scene.root.traverse((node) {

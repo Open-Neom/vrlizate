@@ -25,6 +25,12 @@ class MeshNode extends Node {
   Aabb get localAabb => geometry.aabb;
 
   @override
+  bool get isRenderable => true;
+
+  @override
+  bool get isTransparent => material.isTransparent;
+
+  @override
   void onRender(Canvas canvas, Matrix4 viewProjection) {
     _renderTriangles(canvas, viewProjection);
   }
@@ -141,6 +147,12 @@ class MeshNode extends Node {
 class LitMeshNode extends MeshNode {
   final List<Light> lights;
 
+  /// Camera position used for view-dependent specular lighting.
+  final Vector3 cameraPosition = Vector3.zero();
+
+  /// Visibility of non-ambient lights, supplied by hybrid ray queries.
+  double directLightVisibility = 1.0;
+
   LitMeshNode({
     super.name,
     required super.geometry,
@@ -192,15 +204,23 @@ class LitMeshNode extends MeshNode {
       // Accumulate light (diffuse + PBR Cook-Torrance specular highlight)
       double lightFactor = 0;
       double specularFactor = 0;
-      final viewDir = (Vector3.zero() - worldCenter)..normalize();
+      final viewDir = (cameraPosition - worldCenter)..normalize();
 
       for (final light in lights) {
-        final diffuse = light.calculateIntensity(worldCenter, worldNormal);
+        final visibility = light.type == LightType.ambient
+            ? 1.0
+            : directLightVisibility;
+        final diffuse =
+            light.calculateIntensity(worldCenter, worldNormal) * visibility;
         lightFactor += diffuse;
 
-        if (material.metallic > 0 || material.roughness < 0.9) {
-          final lightDir = (light.transform.position - worldCenter)
-            ..normalize();
+        if (light.type != LightType.ambient &&
+            (material.metallic > 0 || material.roughness < 0.9)) {
+          final lightDir =
+              light.type == LightType.directional
+                    ? -light.direction
+                    : (light.worldPosition - worldCenter)
+                ..normalize();
           final halfVector = (lightDir + viewDir)..normalize();
           final ndotH = max(0.0, worldNormal.dot(halfVector));
           final shininess = (1.0 - material.roughness.clamp(0.01, 1.0)) * 128.0;

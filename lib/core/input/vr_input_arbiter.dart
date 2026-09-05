@@ -183,7 +183,7 @@ class VrInputArbiter {
   final List<_DriverRegistration> _drivers = <_DriverRegistration>[];
   final List<int> _lastActiveAt = List<int>.filled(
     VrInputPriority.values.length,
-    -0x3FFFFFFFFFFFFFFF,
+    -9007199254740991, // Minimum exact integer shared by Dart VM and JavaScript.
   );
 
   int _dispatchDepth = 0;

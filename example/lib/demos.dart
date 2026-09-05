@@ -11,6 +11,12 @@ abstract class VRDemo {
 
   VRDemo(this.engine);
 
+  VrlizateScene? get qualityScene =>
+      engine.scene is VrlizateScene ? engine.scene as VrlizateScene : null;
+
+  int get recommendedSphereSegments =>
+      qualityScene?.recommendedSphereSegments ?? 16;
+
   void init();
   void update(double dt);
   void handleTap() {
@@ -38,7 +44,19 @@ class PhysicsPlaygroundDemo extends VRDemo {
 
   @override
   void init() {
+    engine.scene.backgroundColor = const Color(0xFF0A1020);
+    engine.scene.fogDensity = 0.025;
+    engine.scene.fogColor = const Color(0xFF0A1020);
     physicsWorld = PhysicsWorld(groundY: -1.6);
+
+    final ambient = Light.ambient(intensity: 0.28);
+    final keyLight = Light.directional(
+      direction: Vector3(-0.45, -1, -0.35),
+      intensity: 1.15,
+    );
+    engine.scene.add(ambient);
+    engine.scene.add(keyLight);
+    nodes.addAll([ambient, keyLight]);
 
     // Dynamic ground plane mesh for visuals
     final ground =
@@ -92,7 +110,10 @@ class PhysicsPlaygroundDemo extends VRDemo {
     );
 
     // Bouncy Spheres
-    final sphereGeometry = SphereGeometry(radius: 0.35, segments: 12);
+    final sphereGeometry = SphereGeometry(
+      radius: 0.35,
+      segments: recommendedSphereSegments,
+    );
     for (var i = 0; i < 3; i++) {
       _createPhysicsSphere(
         Vector3(-1.8 + i * 1.8, 1.2, -5.0),
@@ -227,9 +248,10 @@ class StarfieldNode extends Node {
   final List<Vector3> starDirections = [];
   final List<double> starSizes = [];
 
-  StarfieldNode({required this.cameraRig}) : super(name: 'starfield') {
+  StarfieldNode({required this.cameraRig, int starCount = 200})
+    : super(name: 'starfield') {
     final random = Random(1337);
-    for (var i = 0; i < 200; i++) {
+    for (var i = 0; i < starCount; i++) {
       final theta = random.nextDouble() * 2.0 * pi;
       final phi = acos(2.0 * random.nextDouble() - 1.0);
       final dir = Vector3(
@@ -241,6 +263,12 @@ class StarfieldNode extends Node {
       starSizes.add(0.4 + random.nextDouble() * 1.2);
     }
   }
+
+  @override
+  bool get isRenderable => true;
+
+  @override
+  bool get isTransparent => true;
 
   @override
   void onRender(Canvas canvas, Matrix4 viewProjection) {
@@ -271,6 +299,12 @@ class CockpitHudNode extends Node {
 
   CockpitHudNode({required this.cameraRig, required this.planets})
     : super(name: 'cockpit_hud');
+
+  @override
+  bool get isRenderable => true;
+
+  @override
+  bool get isTransparent => true;
 
   @override
   void onRender(Canvas canvas, Matrix4 viewProjection) {
@@ -403,6 +437,8 @@ class SpaceFlightDemo extends VRDemo {
   @override
   void init() {
     engine.cameraRig.position = Vector3(0, 0, 0);
+    engine.scene.backgroundColor = const Color(0xFF01030A);
+    engine.scene.fogDensity = 0;
 
     // Ambient light setup
     final light = Light.ambient(intensity: 0.15);
@@ -418,15 +454,43 @@ class SpaceFlightDemo extends VRDemo {
     nodes.add(sun);
 
     // Starfield background
-    starfield = StarfieldNode(cameraRig: engine.cameraRig);
+    final starCount = switch (qualityScene?.quality) {
+      VrlizateSceneQuality.lite => 140,
+      VrlizateSceneQuality.high => 360,
+      _ => 240,
+    };
+    starfield = StarfieldNode(
+      cameraRig: engine.cameraRig,
+      starCount: starCount,
+    );
     engine.scene.add(starfield);
     nodes.add(starfield);
+
+    final sunCore = LitMeshNode(
+      name: 'SOL',
+      geometry: SphereGeometry(
+        radius: 2.6,
+        segments: recommendedSphereSegments,
+      ),
+      material: VRMaterial(
+        color: const Color(0xFFFFF1B8),
+        emissive: const Color(0xFFFFB703),
+        roughness: 0.15,
+      ),
+    );
+    sunCore.transform.position = Vector3(-18, 10, -55);
+    sunCore.onTransformChanged();
+    engine.scene.add(sunCore);
+    nodes.add(sunCore);
 
     // Blue/Green Earth-like Planet
     final earth =
         LitMeshNode(
             name: 'TERRA',
-            geometry: SphereGeometry(radius: 5.0, segments: 16),
+            geometry: SphereGeometry(
+              radius: 5.0,
+              segments: recommendedSphereSegments,
+            ),
             material: VRMaterial(
               color: const Color(0xFF0F766E),
               metallic: 0.5,
@@ -443,7 +507,10 @@ class SpaceFlightDemo extends VRDemo {
     final mars =
         LitMeshNode(
             name: 'ARES',
-            geometry: SphereGeometry(radius: 3.5, segments: 16),
+            geometry: SphereGeometry(
+              radius: 3.5,
+              segments: recommendedSphereSegments,
+            ),
             material: VRMaterial(
               color: const Color(0xFFC2410C),
               metallic: 0.7,
@@ -460,7 +527,10 @@ class SpaceFlightDemo extends VRDemo {
     final jupiter =
         LitMeshNode(
             name: 'ZEUS',
-            geometry: SphereGeometry(radius: 12.0, segments: 24),
+            geometry: SphereGeometry(
+              radius: 12.0,
+              segments: recommendedSphereSegments,
+            ),
             material: VRMaterial(
               color: const Color(0xFF78350F),
               metallic: 0.1,
@@ -517,11 +587,37 @@ class VRCinemaDemo extends VRDemo {
   @override
   void init() {
     engine.cameraRig.position = Vector3(0, 0, 0);
+    engine.scene.backgroundColor = const Color(0xFF02040A);
+    engine.scene.fogDensity = 0.06;
+    engine.scene.fogColor = const Color(0xFF02040A);
 
     // Ambient light - extremely dim
     final ambient = Light.ambient(intensity: 0.08);
     engine.scene.add(ambient);
     nodes.add(ambient);
+
+    final projectorLight = Light.point(
+      position: Vector3(0, 2.5, -2),
+      color: const Color(0xFF93C5FD),
+      intensity: 0.9,
+      range: 14,
+    );
+    engine.scene.add(projectorLight);
+    nodes.add(projectorLight);
+
+    final floor = LitMeshNode(
+      name: 'cinema_floor',
+      geometry: PlaneGeometry(width: 16, height: 18, segW: 3, segH: 3),
+      material: PBRMaterial(
+        color: const Color(0xFF111827),
+        metallic: 0.25,
+        roughness: 0.62,
+      ),
+    );
+    floor.transform.position = Vector3(0, -1.5, -3);
+    floor.onTransformChanged();
+    engine.scene.add(floor);
+    nodes.add(floor);
 
     // Curved Screen geometry construction
     const double radius = 8.0;
@@ -547,10 +643,9 @@ class VRCinemaDemo extends VRDemo {
         ),
       );
       segment.transform.position = Vector3(x, 1.8, z);
-      segment.transform.rotation = Quaternion.axisAngle(
-        Vector3(0, 1, 0),
-        -angle,
-      );
+      segment.transform.rotation =
+          Quaternion.axisAngle(Vector3(0, 1, 0), -angle) *
+          Quaternion.axisAngle(Vector3(1, 0, 0), pi / 2);
       segment.onTransformChanged();
 
       engine.scene.add(segment);
@@ -573,6 +668,17 @@ class VRCinemaDemo extends VRDemo {
             ..onTransformChanged();
       engine.scene.add(chair);
       nodes.add(chair);
+
+      final chairBack = LitMeshNode(
+        name: 'chair_back_$x',
+        geometry: CubeGeometry(),
+        material: PBRMaterial(color: const Color(0xFF451A03), roughness: 0.72),
+      );
+      chairBack.transform.position = Vector3(x, -0.82, 2.05);
+      chairBack.transform.scale = Vector3(0.58, 0.8, 0.16);
+      chairBack.onTransformChanged();
+      engine.scene.add(chairBack);
+      nodes.add(chairBack);
     }
 
     // UI Progress Label
@@ -581,7 +687,7 @@ class VRCinemaDemo extends VRDemo {
             name: 'cinema_label',
             cameraRig: engine.cameraRig,
             text: 'Cosmic Voyage - 00:00 / 05:00',
-            fontSize: 2.2,
+            fontSize: 0.28,
             color: const Color(0xFF00FFCC),
             lockY: true,
           )
@@ -683,18 +789,32 @@ class WifiRadarDemo extends VRDemo {
   late final SpatialText overlayInfo;
 
   final List<HologramMeshNode> hologramParts = [];
+  final Random _noise = Random(42);
   double elapsed = 0.0;
+  double _nextCsiFrameAt = 0.0;
 
   WifiRadarDemo(super.engine);
 
   @override
   void init() {
     engine.cameraRig.position = Vector3(0, 0, 0);
+    engine.scene.backgroundColor = const Color(0xFF020B12);
+    engine.scene.fogDensity = 0.035;
+    engine.scene.fogColor = const Color(0xFF020B12);
 
     // Dim sci-fi blue ambient light
     final ambient = Light.ambient(intensity: 0.18);
     engine.scene.add(ambient);
     nodes.add(ambient);
+
+    final radarLight = Light.point(
+      position: Vector3(0, 2, -2.5),
+      color: const Color(0xFF22D3EE),
+      intensity: 1.0,
+      range: 9,
+    );
+    engine.scene.add(radarLight);
+    nodes.add(radarLight);
 
     // Green Radar floor sensor node
     radarNode =
@@ -730,6 +850,8 @@ class WifiRadarDemo extends VRDemo {
       geometry: CylinderGeometry(radius: 0.25, height: 1.0, segments: 10),
       hologramColor: const Color(0xFF06B6D4), // Cyan
     );
+    bodyHolo.transform.position = Vector3(0, -1.0, -4.0);
+    bodyHolo.onTransformChanged();
     engine.scene.add(bodyHolo);
     nodes.add(bodyHolo);
     hologramParts.add(bodyHolo);
@@ -739,6 +861,8 @@ class WifiRadarDemo extends VRDemo {
       geometry: SphereGeometry(radius: 0.16, segments: 8),
       hologramColor: const Color(0xFF06B6D4),
     );
+    headHolo.transform.position = Vector3(0, -0.28, -4.0);
+    headHolo.onTransformChanged();
     engine.scene.add(headHolo);
     nodes.add(headHolo);
     hologramParts.add(headHolo);
@@ -750,11 +874,11 @@ class WifiRadarDemo extends VRDemo {
             cameraRig: engine.cameraRig,
             text:
                 'WiFi CSI Sensing:\nSubject: subject_alpha\nVitals: 16.0 BPM\nSignal Strength: High',
-            fontSize: 1.5,
+            fontSize: 0.22,
             color: const Color(0xFF10B981),
             lockY: true,
           )
-          ..transform.position = Vector3(0, 0.4, -3.0)
+          ..transform.position = Vector3(-1.05, 0.55, -3.2)
           ..onTransformChanged();
     engine.scene.add(overlayInfo);
     nodes.add(overlayInfo);
@@ -772,16 +896,26 @@ class WifiRadarDemo extends VRDemo {
     HologramMeshNode.time = elapsed;
     WifiRadarNode.time = elapsed;
 
-    // Feed simulated Channel State Information (CSI) subcarriers into processing isolate
-    final timeMs = DateTime.now().millisecondsSinceEpoch;
-    final amplitudes = List.generate(
-      32,
-      (idx) =>
-          1.2 +
-          sin(elapsed * 2.0 + idx * 0.1) * 0.4 +
-          (Random().nextDouble() - 0.5) * 0.1,
-    );
-    wifiSystem.feedRawCsi(CsiFrame(timestamp: timeMs, amplitudes: amplitudes));
+    // CSI input is sampled at 20 Hz instead of allocating 32 values per
+    // rendered frame. The isolate still receives enough temporal resolution
+    // for motion and respiration simulation on low-memory phones.
+    if (elapsed >= _nextCsiFrameAt) {
+      _nextCsiFrameAt = elapsed + 0.05;
+      final amplitudes = List<double>.generate(
+        32,
+        (idx) =>
+            1.2 +
+            sin(elapsed * 2.0 + idx * 0.1) * 0.4 +
+            (_noise.nextDouble() - 0.5) * 0.1,
+        growable: false,
+      );
+      wifiSystem.feedRawCsi(
+        CsiFrame(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          amplitudes: amplitudes,
+        ),
+      );
+    }
 
     // Rotate physical scan sweep line around Y-axis
     scannerLine.transform.rotate(
@@ -831,6 +965,9 @@ class GridDemo extends VRDemo {
 
   @override
   void init() {
+    engine.scene.backgroundColor = const Color(0xFF03030B);
+    engine.scene.fogDensity = 0.018;
+    engine.scene.fogColor = const Color(0xFF03030B);
     // Lights
     final ambient = Light.ambient(intensity: 0.5);
     engine.scene.add(ambient);
@@ -854,6 +991,17 @@ class GridDemo extends VRDemo {
           ..onTransformChanged();
     engine.scene.add(ground);
     nodes.add(ground);
+
+    final nearGrid = GridFloor(
+      size: 24,
+      divisions: 24,
+      color: const Color(0x2022D3EE),
+      centerLineColor: const Color(0x8058A6FF),
+    );
+    nearGrid.transform.position = Vector3(0, -1.57, -5);
+    nearGrid.onTransformChanged();
+    engine.scene.add(nearGrid);
+    nodes.add(nearGrid);
 
     // Ring, Meridian, Beam, Card, Label methods
     _ring('eq', _r, 0, 0.2, const Color(0xFFFFDD00), const Color(0xFFBB9900));

@@ -19,6 +19,12 @@ class GridFloor extends Node {
   }) : super(name: 'grid_floor');
 
   @override
+  bool get isRenderable => true;
+
+  @override
+  bool get isTransparent => true;
+
+  @override
   void onRender(Canvas canvas, Matrix4 viewProjection) {
     final half = size / 2;
     final step = size / divisions;

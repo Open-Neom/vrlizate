@@ -1,5 +1,64 @@
 # Changelog
 
+## 1.11.0 — 2026-09-05
+
+This release reconciles the package manifest (previously `1.8.0`) with the
+repository's `1.9.0` and `1.10.0` development notes. Historical headings describe
+repository milestones; they do not imply that every version was published to
+pub.dev.
+
+### Added — Movable 3D Home, Demo Lighting & Hybrid Ray Tracing
+- Added `VrlizateScene` quality profiles with hardware-aware sphere tessellation
+  and bounded object-space ray-query budgets.
+- Added `HybridRayTracer` and render-pass integration for direct-light
+  visibility shadows shared by both stereo eyes.
+- Rebuilt the example Home as movable world-space screens with a 3D frame,
+  floor, lights, Home bar, touch look/recenter, and spatial back navigation.
+- Improved every example scene with correct custom-node rendering, lighting,
+  fog, PBR geometry, corrected cinema screen orientation, and lower-frequency
+  radar sampling.
+
+### Added — Parent/Child Smartphone Controller MVP
+- Versioned controller profile and sequenced pose protocol with normalized
+  control layouts, quaternion orientation, angular velocity, acceleration,
+  touch/button state, and optional range source/confidence.
+- Authenticated local TCP reference transport with pooled-event snapshots,
+  connection state, profile/pose streams, latency measurement, and conditional
+  web stub.
+- Child-side `VrRemoteImuController` with screen-axis normalization, gyro 3DoF
+  integration, recentering, rate limiting, and latest-frame backpressure.
+- Parent-side `VrRemoteControllerSession` and `VrControllerAvatarNode` for a
+  head-relative visual phone, highlighted controls, stale-frame rejection, and
+  canonical input arbitration.
+- Added `VrControllerArmModel` for a bounded, smoothed visual hand position
+  derived from orientation, without claiming measured positional tracking.
+- Added `VrRemoteTouchpadDriver` and `VrRemotePosePredictor` for normalized
+  touch input and bounded angular prediction using measured transport latency.
+- Added `SpatialNavigationArrow`, a mesh-based upper-left back affordance with
+  gaze/tap interaction, and allocation-conscious transform-copy helpers.
+
+### Fixed
+- `GazePointer.update(dwellEnabled: false)` now discards dwell progress while
+  preserving hover and manual input. Re-enabling starts a full dwell interval
+  even when the target has not changed.
+- Engine tap/dwell picking skips non-interactive geometry and dispatches dwell
+  activation to the target's `Pointable`.
+- Spatial panels, text, grid floors, radar, and other opt-in custom nodes
+  participate in render sorting and drawing. Specular lighting uses the camera
+  position and treats directional and ambient lights appropriately.
+- Replaced the arbiter's out-of-range timestamp sentinel with a JavaScript-safe
+  exact integer so the public exports continue compiling for web/WASM.
+
+### Scope and compatibility
+- The core renderer remains Dart/Canvas based. The optional `vrlizate_scene`
+  Flutter GPU adapter is a separate package, not this release's renderer.
+- Hybrid tracing approximates object-level direct-light visibility against
+  AABBs; it is not per-pixel path tracing or ray-traced reflections.
+- The reference native transport uses authenticated, unencrypted JSON over
+  local TCP. BLE/Wi-Fi Direct are extension points, not implemented transports.
+- Pooled input events avoid event-object churn; JSON, snapshots, scene updates,
+  and rendering are not an end-to-end Zero-GC pipeline.
+
 ## 1.10.0 — 2026-09-03
 
 ### Added — Zero-GC Multimodal Input Arbiter, Reference Gamepad Driver & Open-Source Spec

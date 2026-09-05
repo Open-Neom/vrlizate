@@ -21,9 +21,22 @@ class Transform3D {
     _dirty = true;
   }
 
+  /// Copies a position into the existing vector without replacing storage.
+  void setPositionFrom(Vector3 value) {
+    _position.setFrom(value);
+    _dirty = true;
+  }
+
   Quaternion get rotation => _rotation;
   set rotation(Quaternion q) {
     _rotation = q..normalize();
+    _dirty = true;
+  }
+
+  /// Copies a rotation into the existing quaternion without replacing storage.
+  void setRotationFrom(Quaternion value) {
+    _rotation.setFrom(value);
+    _rotation.normalize();
     _dirty = true;
   }
 
@@ -41,6 +54,22 @@ class Transform3D {
 
   /// Up direction (+Y axis in local space, rotated).
   Vector3 get up => _rotation.rotated(Vector3(0, 1, 0));
+
+  /// Allocation-free direction copies for per-frame consumers.
+  void copyForwardTo(Vector3 out) {
+    out.setValues(0, 0, -1);
+    _rotation.rotate(out);
+  }
+
+  void copyRightTo(Vector3 out) {
+    out.setValues(1, 0, 0);
+    _rotation.rotate(out);
+  }
+
+  void copyUpTo(Vector3 out) {
+    out.setValues(0, 1, 0);
+    _rotation.rotate(out);
+  }
 
   void translate(Vector3 delta) {
     _position += delta;

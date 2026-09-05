@@ -160,6 +160,15 @@ class Node {
   Aabb get localAabb =>
       Aabb.fromCenterExtents(Vector3.zero(), Vector3(0.5, 0.5, 0.5));
 
+  /// Whether this node contributes pixels during a render pass.
+  ///
+  /// Container nodes remain non-renderable while meshes and spatial UI
+  /// surfaces opt in. This keeps scene grouping nodes out of draw sorting.
+  bool get isRenderable => false;
+
+  /// Whether this node requires back-to-front alpha ordering.
+  bool get isTransparent => false;
+
   // ─── Traversal ──────────────────────
 
   /// Traverses the tree depth-first, calling visitor for each node.

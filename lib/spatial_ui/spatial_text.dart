@@ -26,6 +26,12 @@ class SpatialText extends Billboard {
   });
 
   @override
+  bool get isRenderable => true;
+
+  @override
+  bool get isTransparent => true;
+
+  @override
   void onRender(Canvas canvas, Matrix4 viewProjection) {
     final mvp = viewProjection * worldMatrix;
     final center4 = mvp.transformed(Vector4(0, 0, 0, 1));

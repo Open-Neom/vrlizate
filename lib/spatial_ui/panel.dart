@@ -37,6 +37,12 @@ class SpatialPanel extends Billboard {
   });
 
   @override
+  bool get isRenderable => true;
+
+  @override
+  bool get isTransparent => true;
+
+  @override
   void onRender(Canvas canvas, Matrix4 viewProjection) {
     // Transform panel center to screen space
     final mvp = viewProjection * worldMatrix;
