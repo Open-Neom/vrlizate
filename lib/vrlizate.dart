@@ -48,6 +48,7 @@ export 'core/input/wifi_rtt.dart';
 export 'core/input/wifi_sensing.dart';
 
 // ============ Core — Network ============
+export 'core/network/vr_controller_binary_protocol.dart';
 export 'core/network/vr_controller_protocol.dart';
 export 'core/network/vr_controller_transport.dart';
 export 'core/network/vr_local_socket_transport.dart';
@@ -64,6 +65,7 @@ export 'core/projection/stereoscopic_projection.dart';
 export 'core/rendering/gpu_renderer.dart';
 export 'core/rendering/render_pass.dart';
 export 'core/rendering/shader_program.dart';
+export 'core/rendering/vr_gpu_target_descriptor.dart';
 export 'core/rendering/vr_renderer.dart';
 
 // ============ Core — Engine ============
