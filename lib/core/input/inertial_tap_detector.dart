@@ -35,6 +35,7 @@ class InertialTapDetector {
   OnInertialTapCallback? onDoubleTap;
 
   StreamSubscription<UserAccelerometerEvent>? _subscription;
+  Timer? _singleTapTimer;
 
   double _prevAx = 0.0;
   double _prevAy = 0.0;
@@ -98,8 +99,9 @@ class InertialTapDetector {
       _tapCount = 1;
       _firstTapInWindow = now;
 
+      _singleTapTimer?.cancel();
       // Schedule single tap callback if no second tap arrives
-      Timer(config.doubleTapWindow, () {
+      _singleTapTimer = Timer(config.doubleTapWindow, () {
         if (_tapCount == 1) {
           onSingleTap?.call();
           _tapCount = 0;
@@ -107,6 +109,8 @@ class InertialTapDetector {
       });
     } else {
       // Second tap arrived within window -> Double Tap!
+      _singleTapTimer?.cancel();
+      _singleTapTimer = null;
       _tapCount = 0;
       onDoubleTap?.call();
     }
@@ -114,6 +118,8 @@ class InertialTapDetector {
 
   /// Stops listening to accelerometer events.
   void stop() {
+    _singleTapTimer?.cancel();
+    _singleTapTimer = null;
     _subscription?.cancel();
     _subscription = null;
   }
