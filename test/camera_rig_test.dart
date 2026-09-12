@@ -148,5 +148,48 @@ void main() {
       expect(localLeft.length, lessThan(0.12)); // ~0.1142m <= 0.12m
       expect(localRight.length, lessThan(0.12));
     });
+
+    test('horizon lock: zero roll maintained across arbitrary yaw and pitch', () {
+      final rig = CameraRig();
+
+      // Test a wide variety of rotations
+      final angles = [
+        (0.5, 0.3),
+        (-1.2, 0.8),
+        (pi, -1.0),
+        (-pi / 2, 1.45),
+        (2 * pi, -1.45),
+      ];
+
+      for (final (yaw, pitch) in angles) {
+        rig.setOrientation(yaw, pitch);
+
+        // Right vector must remain strictly horizontal (Y = 0)
+        expect(rig.headTransform.right.y, closeTo(0.0, 1e-5),
+            reason: 'Right vector must have zero vertical component (0° roll)');
+
+        // Up vector must always have a positive Y component (never inverts or tilts upside down)
+        expect(rig.headTransform.up.y, greaterThan(0.1),
+            reason: 'Up vector must always point upward in world space');
+
+        // Pitch must be strictly clamped within [-1.45, 1.45] rad (prevent zenith/nadir flip)
+        expect(rig.pitch, inInclusiveRange(-1.45, 1.45));
+      }
+    });
+
+    test('rotate clamps pitch and maintains upright horizon', () {
+      final rig = CameraRig();
+
+      // Try rotating excessively upwards (+5 rad) and downwards (-5 rad)
+      rig.rotate(0.5, 5.0);
+      expect(rig.pitch, 1.45);
+      expect(rig.headTransform.up.y, greaterThan(0.1));
+      expect(rig.headTransform.right.y, closeTo(0.0, 1e-5));
+
+      rig.rotate(0.0, -10.0);
+      expect(rig.pitch, -1.45);
+      expect(rig.headTransform.up.y, greaterThan(0.1));
+      expect(rig.headTransform.right.y, closeTo(0.0, 1e-5));
+    });
   });
 }

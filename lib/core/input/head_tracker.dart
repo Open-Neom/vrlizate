@@ -11,6 +11,12 @@ abstract class RotationTarget {
   void rotate(double dTheta, double dPhi);
   void reset();
   void recenter() => reset();
+
+  /// Sets absolute gaze angles (yaw, pitch) in radians.
+  void setOrientation(double yaw, double pitch) {}
+
+  /// Sets absolute elevation (pitch) in radians.
+  void setPitch(double pitch) {}
 }
 
 /// Head tracking input via device gyroscope with calibration and background Isolate.
@@ -59,7 +65,6 @@ class HeadTracker {
   bool isGyroscopeActive = true;
   int _gyroEventsCount = 0;
   double _smoothPitch = 0.0;
-  double? _lastAccelPitch;
 
   DateTime? _lastTimestamp;
 
@@ -80,7 +85,7 @@ class HeadTracker {
   HeadTracker({
     required this.target,
     this.sensitivity = 1.0,
-    this.pitchGain = 1.25,
+    this.pitchGain = 1.0,
     this.predictionMs = 15.0,
     this.jitterDamping = true,
     bool? useIsolate,
@@ -121,7 +126,6 @@ class HeadTracker {
     _gyroEventsCount = 0;
     isGyroscopeActive = true;
     _smoothPitch = 0.0;
-    _lastAccelPitch = null;
 
     // Detect if gyroscope is present and active within 800ms
     Future.delayed(const Duration(milliseconds: 800), () {
@@ -172,16 +176,22 @@ class HeadTracker {
                   _offsetY = _offsetY * 0.995 + event.y * 0.005;
                 }
 
-                final adjustedX = event.x - _offsetX;
-                final adjustedY = event.y - _offsetY;
+                double adjustedX = event.x - _offsetX;
+                double adjustedY = event.y - _offsetY;
+
+                // Deadband for stationary stillness:
+                // When handheld or resting, micro-tremors under 0.002 rad/s (~0.1°/s) are clamped to 0.
+                // This completely eliminates phantom rotational drift.
+                if (adjustedX.abs() < 0.002) adjustedX = 0.0;
+                if (adjustedY.abs() < 0.002) adjustedY = 0.0;
 
                 // Gravity reference for pitch channel in Landscape Left:
                 // Horizon (0°): accelX ≈ +9.8, accelZ ≈ 0 -> atan2(0, 9.8) = 0.0
-                // Look up (ceiling): atan2(+9.8, 0) = +1.57 rad
-                // Look down (feet): atan2(-9.8, 0) = -1.57 rad
+                // Look up (ceiling): atan2(+9.8, 0) = +1.57 rad -> clamped to 1.45 (±83°)
+                // Look down (feet): atan2(-9.8, 0) = -1.57 rad -> clamped to -1.45
                 double gravityPitch() {
                   final ax = _accelX.abs() < 0.01 ? 0.01 : _accelX;
-                  return atan2(_accelZ, ax);
+                  return atan2(_accelZ, ax).clamp(-1.45, 1.45);
                 }
 
                 final now = DateTime.now();
@@ -191,6 +201,7 @@ class HeadTracker {
                   _pitchFused = gravityPitch();
                   _prevYawFused = _yawFused;
                   _prevPitchFused = _pitchFused;
+                  target.setPitch(_pitchFused * pitchGain);
                   return;
                 }
 
@@ -209,7 +220,8 @@ class HeadTracker {
 
                 final predictionTime = predictionMs / 1000.0;
                 final predictedYaw = _yawFused + adjustedX * predictionTime;
-                final predictedPitch = _pitchFused + adjustedY * predictionTime;
+                final predictedPitch =
+                    (_pitchFused * pitchGain + adjustedY * predictionTime).clamp(-1.45, 1.45);
 
                 final dYaw = predictedYaw - (_prevYawFused ?? predictedYaw);
                 final dPitch =
@@ -227,14 +239,17 @@ class HeadTracker {
                   _dampedDPitch = _dampedDPitch * 0.15 + rawDPitch * 0.85;
                   target.rotate(
                     _dampedDYaw * sensitivity,
-                    _dampedDPitch * sensitivity * pitchGain,
+                    _dampedDPitch * sensitivity,
                   );
                 } else {
                   target.rotate(
                     dYaw * sensitivity,
-                    dPitch * sensitivity * pitchGain,
+                    dPitch * sensitivity,
                   );
                 }
+
+                // Anchor pitch directly to physical gravity: guaranteed level horizon and zero drift.
+                target.setPitch(predictedPitch);
               });
       return;
     }
@@ -303,14 +318,7 @@ class HeadTracker {
 
     // Low-pass filter to smooth hand jitters
     _smoothPitch = _smoothPitch * 0.85 + pitch * 0.15;
-
-    if (_lastAccelPitch != null) {
-      final dPitch = _smoothPitch - _lastAccelPitch!;
-      // Apply pitch (vertical look) delta to camera.
-      target.rotate(0.0, dPitch * sensitivity * pitchGain);
-    }
-
-    _lastAccelPitch = _smoothPitch;
+    target.setPitch(_smoothPitch * pitchGain);
   }
 
   /// Calibrates gyroscope by averaging drift over 1 second.
@@ -336,7 +344,6 @@ class HeadTracker {
       }
       _lastTimestamp = null;
       _yawFused = 0.0;
-      _pitchFused = 0.0;
       _prevYawFused = null;
       _prevPitchFused = null;
       _dampedDYaw = 0.0;
@@ -345,11 +352,16 @@ class HeadTracker {
     });
   }
 
-  /// Recenters the horizontal head-tracking azimuth (Yaw = 0°).
+  /// Recenters the horizontal head-tracking azimuth (Yaw = 0°) and aligns pitch with gravity.
   void recenter() {
     _yawFused = 0.0;
     _prevYawFused = null;
     target.recenter();
+
+    final ax = _accelX.abs() < 0.01 ? 0.01 : _accelX;
+    _pitchFused = atan2(_accelZ, ax);
+    _prevPitchFused = _pitchFused;
+    target.setPitch(_pitchFused * pitchGain);
   }
 
   /// Applies touch/pan input as rotation (fallback when no gyroscope).
@@ -358,6 +370,7 @@ class HeadTracker {
     double dy, {
     double touchSensitivity = 0.005,
   }) {
+    if (isGyroscopeActive) return;
     target.rotate(-dx * touchSensitivity, -dy * touchSensitivity);
   }
 
@@ -399,6 +412,24 @@ class _DynamicTarget implements RotationTarget {
       _target.recenter();
     } catch (_) {
       _target.reset();
+    }
+  }
+
+  @override
+  void setOrientation(double yaw, double pitch) {
+    try {
+      _target.setOrientation(yaw, pitch);
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  @override
+  void setPitch(double pitch) {
+    try {
+      _target.setPitch(pitch);
+    } catch (_) {
+      // ignore
     }
   }
 }

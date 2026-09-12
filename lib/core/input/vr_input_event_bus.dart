@@ -22,6 +22,27 @@ enum VrInputType {
 
   /// Continuous 3DoF pointer pose update from a tracked remote.
   pointerMove,
+
+  /// Action button A on gamepad or remote.
+  buttonA,
+
+  /// Action button B on gamepad or remote.
+  buttonB,
+
+  /// Mode cycle / switch button X.
+  buttonX,
+
+  /// Special action / secondary power button Y.
+  buttonY,
+
+  /// Shoulder utility / defense button L.
+  buttonL,
+
+  /// Shoulder primary action button R.
+  buttonR,
+
+  /// Grip / Grab / Telekinesis action on gamepad or remote.
+  grip,
 }
 
 /// Hardware or software source that originated the input event.

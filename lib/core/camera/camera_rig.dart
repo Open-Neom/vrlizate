@@ -86,13 +86,22 @@ class CameraRig implements RotationTarget {
     // qPitch rotates around Camera Local Horizontal X-Axis -> elevation clamped to prevent flipping.
     final qYaw = Quaternion.axisAngle(Vector3(0, 1, 0), _yaw);
     final qPitch = Quaternion.axisAngle(Vector3(1, 0, 0), _pitch);
-    headTransform.rotation = (qYaw * qPitch)..normalize();
+    headTransform.rotation = (qPitch * qYaw)..normalize();
   }
 
   /// Sets the absolute gaze angles in radians.
+  @override
   void setOrientation(double yaw, double pitch) {
     _yaw = yaw;
     _pitch = pitch.clamp(-1.45, 1.45); // Clamped to ±83°
+    _applyOrientation();
+  }
+
+  /// Sets the vertical elevation (pitch) directly in radians.
+  /// Anchored to physical gravity so the horizon remains level and drift-free.
+  @override
+  void setPitch(double pitch) {
+    _pitch = pitch.clamp(-1.45, 1.45);
     _applyOrientation();
   }
 

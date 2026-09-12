@@ -45,4 +45,15 @@ class VRCamera implements RotationTarget {
   void recenter() {
     theta = 0;
   }
+
+  @override
+  void setOrientation(double yaw, double pitch) {
+    theta = yaw;
+    phi = pitch.clamp(-pi / 2 + 0.01, pi / 2 - 0.01);
+  }
+
+  @override
+  void setPitch(double pitch) {
+    phi = pitch.clamp(-pi / 2 + 0.01, pi / 2 - 0.01);
+  }
 }

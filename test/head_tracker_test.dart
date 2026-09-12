@@ -22,6 +22,12 @@ class MockRotationTarget implements RotationTarget {
   void recenter() {
     resetCount++;
   }
+
+  @override
+  void setOrientation(double yaw, double pitch) {}
+
+  @override
+  void setPitch(double pitch) {}
 }
 
 void main() {
@@ -135,11 +141,18 @@ void main() {
       });
     });
 
-    test('touchDelta delegates directly to target', () {
+    test('touchDelta delegates directly to target when gyroscope is inactive', () {
+      tracker.isGyroscopeActive = false;
       tracker.applyTouchDelta(10, 20, touchSensitivity: 0.1);
       expect(target.rotateCalls.length, equals(1));
       expect(target.rotateCalls.first[0], equals(-1.0));
       expect(target.rotateCalls.first[1], equals(-2.0));
+    });
+
+    test('touchDelta ignores touch when gyroscope is active', () {
+      tracker.isGyroscopeActive = true;
+      tracker.applyTouchDelta(10, 20, touchSensitivity: 0.1);
+      expect(target.rotateCalls.isEmpty, isTrue);
     });
   });
 }

@@ -303,4 +303,11 @@ class _HeadTrackerBridge implements RotationTarget {
 
   @override
   void recenter() => rig.recenter();
+
+  @override
+  void setOrientation(double yaw, double pitch) =>
+      rig.setOrientation(yaw, pitch);
+
+  @override
+  void setPitch(double pitch) => rig.setPitch(pitch);
 }
