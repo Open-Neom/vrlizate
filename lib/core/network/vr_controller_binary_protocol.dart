@@ -5,10 +5,17 @@ import 'package:vector_math/vector_math.dart';
 import '../input/vr_input_event_bus.dart';
 import 'vr_controller_protocol.dart';
 
-/// Binary wire protocol for high-frequency VRlizate controller streaming.
+/// Experimental binary wire codec for compact VRlizate pose streaming.
 ///
-/// Designed to eliminate JSON serialization overhead and GC pressure at 60-120 Hz.
-/// Standard pose frame payload is exactly 28 bytes.
+/// A pose is exactly 28 bytes, but is not a full gamepad state: it has no mode,
+/// second stick, range, or recenter command. JSON remains the full-state route
+/// in vrlizate_joystick. Encoding/decoding allocates; this is not a Zero-GC API.
+/// Sequences and sender timestamps contain only their lower 16 and 32 bits.
+/// Receivers must compare sequences modulo 65536 (a forward gap < 32768).
+///
+/// Null touch coordinates use signed -32768; 0..32767 encode the full 0..1
+/// range. The previous experimental +32767 sentinel was ambiguous with 1.0
+/// and is not supported: update experimental senders and receivers together.
 class VrRemoteBinaryCodec {
   static const int magicByte = 0x56; // ASCII 'V'
   static const int packetTypePose = 0x01;
@@ -22,6 +29,7 @@ class VrRemoteBinaryCodec {
   static const double _quatScale = 32767.0;
   static const double _angVelScale = 100.0;
   static const double _touchScale = 32767.0;
+  static const int _nullTouch = -32768;
 
   const VrRemoteBinaryCodec();
 
@@ -44,18 +52,50 @@ class VrRemoteBinaryCodec {
     data.setUint8(0, magicByte);
     data.setUint8(1, packetTypePose);
     data.setUint16(2, frame.sequence & 0xFFFF, Endian.big);
-    data.setUint32(4, frame.senderTimestampMicroseconds & 0xFFFFFFFF, Endian.big);
+    data.setUint32(
+      4,
+      frame.senderTimestampMicroseconds & 0xFFFFFFFF,
+      Endian.big,
+    );
 
     // Orientation Quaternion: 4 x int16 (-1.0 .. 1.0 mapped to -32767 .. 32767)
-    data.setInt16(8, (frame.qx.clamp(-1.0, 1.0) * _quatScale).round(), Endian.big);
-    data.setInt16(10, (frame.qy.clamp(-1.0, 1.0) * _quatScale).round(), Endian.big);
-    data.setInt16(12, (frame.qz.clamp(-1.0, 1.0) * _quatScale).round(), Endian.big);
-    data.setInt16(14, (frame.qw.clamp(-1.0, 1.0) * _quatScale).round(), Endian.big);
+    data.setInt16(
+      8,
+      (frame.qx.clamp(-1.0, 1.0) * _quatScale).round(),
+      Endian.big,
+    );
+    data.setInt16(
+      10,
+      (frame.qy.clamp(-1.0, 1.0) * _quatScale).round(),
+      Endian.big,
+    );
+    data.setInt16(
+      12,
+      (frame.qz.clamp(-1.0, 1.0) * _quatScale).round(),
+      Endian.big,
+    );
+    data.setInt16(
+      14,
+      (frame.qw.clamp(-1.0, 1.0) * _quatScale).round(),
+      Endian.big,
+    );
 
     // Angular velocity: 3 x int16 (scaled by 100.0)
-    data.setInt16(16, (frame.angularVelocityX * _angVelScale).clamp(-32768, 32767).round(), Endian.big);
-    data.setInt16(18, (frame.angularVelocityY * _angVelScale).clamp(-32768, 32767).round(), Endian.big);
-    data.setInt16(20, (frame.angularVelocityZ * _angVelScale).clamp(-32768, 32767).round(), Endian.big);
+    data.setInt16(
+      16,
+      (frame.angularVelocityX * _angVelScale).clamp(-32768, 32767).round(),
+      Endian.big,
+    );
+    data.setInt16(
+      18,
+      (frame.angularVelocityY * _angVelScale).clamp(-32768, 32767).round(),
+      Endian.big,
+    );
+    data.setInt16(
+      20,
+      (frame.angularVelocityZ * _angVelScale).clamp(-32768, 32767).round(),
+      Endian.big,
+    );
 
     // Buttons bitset: uint16
     data.setUint16(22, frame.buttonsBitset & 0xFFFF, Endian.big);
@@ -63,10 +103,10 @@ class VrRemoteBinaryCodec {
     // Touchpad / Stick: 2 x int16 (0.0 .. 1.0 mapped to 0 .. 32767)
     final tx = frame.touchX != null
         ? (frame.touchX!.clamp(0.0, 1.0) * _touchScale).round()
-        : 0x7FFF; // 0x7FFF sentinel indicates null
+        : _nullTouch;
     final ty = frame.touchY != null
         ? (frame.touchY!.clamp(0.0, 1.0) * _touchScale).round()
-        : 0x7FFF;
+        : _nullTouch;
     data.setInt16(24, tx, Endian.big);
     data.setInt16(26, ty, Endian.big);
 
@@ -75,16 +115,18 @@ class VrRemoteBinaryCodec {
 
   /// Decodes a 28-byte [Uint8List] into a [VrRemotePoseFrame].
   VrRemotePoseFrame decodePose(Uint8List bytes) {
-    if (bytes.length < posePacketLength) {
+    if (bytes.length != posePacketLength) {
       throw FormatException(
-        'Binary pose packet too short: expected $posePacketLength bytes, got ${bytes.length}',
+        'Invalid binary pose length: expected exactly $posePacketLength bytes, got ${bytes.length}',
       );
     }
     final data = ByteData.sublistView(bytes);
     final magic = data.getUint8(0);
     final type = data.getUint8(1);
     if (magic != magicByte || type != packetTypePose) {
-      throw FormatException('Invalid pose packet header: magic 0x${magic.toRadixString(16)}, type 0x${type.toRadixString(16)}');
+      throw FormatException(
+        'Invalid pose packet header: magic 0x${magic.toRadixString(16)}, type 0x${type.toRadixString(16)}',
+      );
     }
 
     final sequence = data.getUint16(2, Endian.big);
@@ -103,8 +145,13 @@ class VrRemoteBinaryCodec {
 
     final rawTx = data.getInt16(24, Endian.big);
     final rawTy = data.getInt16(26, Endian.big);
-    final double? touchX = rawTx == 0x7FFF ? null : (rawTx / _touchScale).clamp(0.0, 1.0);
-    final double? touchY = rawTy == 0x7FFF ? null : (rawTy / _touchScale).clamp(0.0, 1.0);
+    if ((rawTx < 0 && rawTx != _nullTouch) ||
+        (rawTy < 0 && rawTy != _nullTouch) ||
+        ((rawTx == _nullTouch) != (rawTy == _nullTouch))) {
+      throw const FormatException('Invalid binary touch coordinate pair.');
+    }
+    final double? touchX = rawTx == _nullTouch ? null : rawTx / _touchScale;
+    final double? touchY = rawTy == _nullTouch ? null : rawTy / _touchScale;
 
     return VrRemotePoseFrame(
       sequence: sequence,
@@ -130,11 +177,17 @@ class VrRemoteBinaryCodec {
     data.setUint8(5, 0); // reserved
 
     // Sequence / hash of targetId (first 2 bytes)
-    final targetHash = snapshot.targetId != null ? snapshot.targetId.hashCode & 0xFFFF : 0;
+    final targetHash = snapshot.targetId != null
+        ? snapshot.targetId.hashCode & 0xFFFF
+        : 0;
     data.setUint16(6, targetHash, Endian.big);
 
     // Timestamp (lower 32 bits)
-    data.setUint32(8, snapshot.timestampMicrosecondsSinceEpoch & 0xFFFFFFFF, Endian.big);
+    data.setUint32(
+      8,
+      snapshot.timestampMicrosecondsSinceEpoch & 0xFFFFFFFF,
+      Endian.big,
+    );
 
     // Reserved for value / analog float
     data.setFloat32(12, 0.0, Endian.big);
@@ -144,16 +197,18 @@ class VrRemoteBinaryCodec {
 
   /// Decodes a 16-byte [Uint8List] into a discrete input event.
   VrInputEventSnapshot decodeInputEvent(Uint8List bytes) {
-    if (bytes.length < inputPacketLength) {
+    if (bytes.length != inputPacketLength) {
       throw FormatException(
-        'Binary input packet too short: expected $inputPacketLength bytes, got ${bytes.length}',
+        'Invalid binary input length: expected exactly $inputPacketLength bytes, got ${bytes.length}',
       );
     }
     final data = ByteData.sublistView(bytes);
     final magic = data.getUint8(0);
     final type = data.getUint8(1);
     if (magic != magicByte || type != packetTypeInput) {
-      throw FormatException('Invalid input packet header: magic 0x${magic.toRadixString(16)}, type 0x${type.toRadixString(16)}');
+      throw FormatException(
+        'Invalid input packet header: magic 0x${magic.toRadixString(16)}, type 0x${type.toRadixString(16)}',
+      );
     }
 
     final typeIdx = data.getUint8(2);
@@ -161,8 +216,12 @@ class VrRemoteBinaryCodec {
     final active = data.getUint8(4) != 0;
     final timestamp = data.getUint32(8, Endian.big);
 
-    final inputType = typeIdx < VrInputType.values.length ? VrInputType.values[typeIdx] : VrInputType.select;
-    final inputSource = sourceIdx < VrInputSource.values.length ? VrInputSource.values[sourceIdx] : VrInputSource.remotePhone;
+    final inputType = typeIdx < VrInputType.values.length
+        ? VrInputType.values[typeIdx]
+        : VrInputType.select;
+    final inputSource = sourceIdx < VrInputSource.values.length
+        ? VrInputSource.values[sourceIdx]
+        : VrInputSource.remotePhone;
 
     return VrInputEventSnapshot.fromEvent(
       VrInputEvent(
@@ -175,7 +234,11 @@ class VrRemoteBinaryCodec {
   }
 
   /// Encodes a 12-byte heartbeat (Ping/Pong) packet.
-  Uint8List encodeHeartbeat({required int id, required int timestampUs, bool isPong = false}) {
+  Uint8List encodeHeartbeat({
+    required int id,
+    required int timestampUs,
+    bool isPong = false,
+  }) {
     final buffer = Uint8List(heartbeatPacketLength);
     final data = ByteData.sublistView(buffer);
 

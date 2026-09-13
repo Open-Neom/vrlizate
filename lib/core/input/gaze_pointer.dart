@@ -126,7 +126,18 @@ class GazePointer {
   /// Set [dwellEnabled] to false while another input source suppresses auto
   /// selection. Hover and explicit taps remain available, but dwell progress
   /// is discarded. Re-enabling starts a fresh dwell even on the same target.
-  void update(double dt, String? hitNodeId, {bool dwellEnabled = true}) {
+  void update(
+    double dt,
+    String? hitNodeId, {
+    bool dwellEnabled = true,
+    bool allowGrace = true,
+  }) {
+    // Explicit actions need a current hit, never a retained dwell target.
+    if (!allowGrace) {
+      _graceTargetId = null;
+      _graceTimer = 0;
+      _graceSavedGazeTimer = 0;
+    }
     if (!dwellEnabled) {
       _gazeTimer = 0;
       _selected = false;
@@ -136,7 +147,10 @@ class GazePointer {
       if (target != null) onDwellProgress?.call(target, 0);
     }
     // Grace period: brief loss of the target preserves the dwell timer.
-    if (hitNodeId == null && _gazeTargetId != null && !_selected) {
+    if (allowGrace &&
+        hitNodeId == null &&
+        _gazeTargetId != null &&
+        !_selected) {
       if (_graceTargetId != _gazeTargetId) {
         _graceTargetId = _gazeTargetId;
         _graceTimer = 0;

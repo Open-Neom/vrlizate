@@ -11,6 +11,9 @@ import '../input/desktop_input.dart';
 import '../input/head_tracker.dart';
 import '../input/gaze_pointer.dart';
 import '../input/inertial_tap_detector.dart';
+import '../input/vr_input_arbiter.dart';
+import '../input/vr_input_event_bus.dart';
+import '../input/vr_spatial_input_state.dart';
 import '../rendering/render_pass.dart';
 import '../../interaction/raycast.dart';
 
@@ -33,6 +36,14 @@ class VREngine extends ChangeNotifier {
   DesktopInputDriver? desktopInput;
   InertialTapDetector? inertialTapDetector;
   final Raycaster _raycaster = Raycaster();
+  final VrSpatialInputState spatialInput = VrSpatialInputState();
+  final Ray _interactionRay = Ray();
+  bool _hasExternalInteractionRay = false;
+
+  /// A spatial renderer can reserve dwell for its own world-space controls.
+  bool externalDwellSuppressed = false;
+  final Vector3 _inputDisplacement = Vector3.zero();
+  VrInputArbiter? _inputArbiter;
   Quaternion? _lastCameraRotation;
 
   Timer? _timer;
@@ -58,6 +69,84 @@ class VREngine extends ChangeNotifier {
   int get frameCount => _frameCount;
   int get culledCount => renderPass.culledCount;
   int get renderedCount => renderPass.renderedCount;
+
+  /// Publishes an explicit game action without advancing simulation time.
+  void notifyGameStateChanged() => notifyListeners();
+
+  /// Shares arbitration and pointer state with the host; does not own it.
+  void bindInput(VrInputArbiter? arbiter) {
+    if (identical(arbiter, _inputArbiter)) return;
+    _inputArbiter?.removeListener(_onInput);
+    _inputArbiter = arbiter;
+    spatialInput.reset();
+    arbiter?.addListener(_onInput);
+  }
+
+  void _onInput(VrInputEvent event) {
+    spatialInput.handleEvent(event);
+    if (event.type == VrInputType.recenter && event.active && !event.handled) {
+      headTracker?.recenter();
+      cameraRig.recenter();
+      event.consume();
+    }
+  }
+
+  bool get isDwellEnabled =>
+      !externalDwellSuppressed &&
+      !spatialInput.pointerActive &&
+      !(_inputArbiter?.isGazeSuppressed ?? false);
+
+  /// Borrowed world ray shared by gameplay and explicit selection.
+  Ray get interactionRay {
+    if (_hasExternalInteractionRay) return _interactionRay;
+    spatialInput.writeRay(
+      _interactionRay,
+      origin: cameraRig.position,
+      forward: cameraRig.headTransform.forward,
+      screenRight: cameraRig.headTransform.right,
+      up: cameraRig.headTransform.up,
+    );
+    return _interactionRay;
+  }
+
+  /// Copies a renderer's current ray. Passing null restores the core ray.
+  /// This avoids retaining a borrowed/pooled input object across frames.
+  void setExternalInteractionRay(Ray? ray) {
+    _hasExternalInteractionRay = ray != null;
+    if (ray != null) {
+      _interactionRay.origin.setFrom(ray.origin);
+      _interactionRay.direction.setFrom(ray.direction);
+    }
+  }
+
+  /// Transfers frame and sensor ownership to an external spatial renderer.
+  /// Game rules and the source scene remain available through [step].
+  void useExternalFrameDriver() {
+    stop();
+    disableHeadTracking();
+    disableInertialTap();
+    disableDesktopInput();
+  }
+
+  /// Integrates held input once per rendered frame. Public for headless hosts.
+  void updateInput(double dt) {
+    spatialInput.update(dt);
+    if (!dt.isFinite || dt <= 0 || dt > 0.25) return;
+    if (spatialInput.lookX != 0 || spatialInput.lookY != 0) {
+      cameraRig.rotate(
+        spatialInput.lookX * 2.1 * dt,
+        -spatialInput.lookY * 1.5 * dt,
+      );
+    }
+    if (spatialInput.moveX == 0 && spatialInput.moveY == 0) return;
+    spatialInput.writeMovement(
+      _inputDisplacement,
+      forward: cameraRig.headTransform.forward,
+      screenRight: cameraRig.headTransform.right,
+      dt: dt,
+    );
+    cameraRig.position.add(_inputDisplacement);
+  }
 
   /// Starts the game loop, synchronized to the display's vsync when a
   /// [SchedulerBinding] is available (less jitter → less VR motion sickness
@@ -149,7 +238,7 @@ class VREngine extends ChangeNotifier {
     final pointer = gazePointer;
     if (pointer == null) return null;
 
-    for (final hit in _raycaster.cast(pointer.ray, scene.root)) {
+    for (final hit in _raycaster.cast(interactionRay, scene.root)) {
       if (hit.node.pointable != null) return hit;
     }
     return null;
@@ -182,6 +271,16 @@ class VREngine extends ChangeNotifier {
     final now = DateTime.now();
     final dt = now.difference(_lastTime).inMicroseconds / 1000000.0;
     _lastTime = now;
+    step(dt);
+  }
+
+  /// Advances simulation without drawing or scheduling another frame.
+  ///
+  /// External GPU hosts pass [integrateInput] false: their renderer owns
+  /// locomotion, tracking and the active ray, so input is never applied twice.
+  void step(double dt, {bool integrateInput = true}) {
+    if (!dt.isFinite || dt <= 0) return;
+    dt = dt.clamp(0.0, 0.1);
     _frameCount++;
 
     // FPS calculation (smoothed)
@@ -208,6 +307,9 @@ class VREngine extends ChangeNotifier {
     }
     _lastCameraRotation = currentRotation.clone();
 
+    if (integrateInput) updateInput(dt);
+    if (!integrateInput) spatialInput.update(dt);
+
     // Update scene
     scene.update(dt);
 
@@ -216,7 +318,7 @@ class VREngine extends ChangeNotifier {
       final pointer = gazePointer!;
       final hit = _nearestPointableHit();
       final progressBeforeUpdate = pointer.dwellProgress;
-      pointer.update(dt, hit?.node.name);
+      pointer.update(dt, hit?.node.name, dwellEnabled: isDwellEnabled);
 
       // Dwell selection activates the same Pointable used by a physical tap.
       if (hit != null &&
@@ -238,7 +340,7 @@ class VREngine extends ChangeNotifier {
     }
 
     // Update desktop locomotion (WASD) if active
-    desktopInput?.update(dt);
+    if (integrateInput) desktopInput?.update(dt);
 
     // Custom update callback
     onUpdate?.call(dt);
@@ -255,6 +357,7 @@ class VREngine extends ChangeNotifier {
 
   @override
   void dispose() {
+    bindInput(null);
     stop();
     _ticker?.dispose();
     headTracker?.dispose();

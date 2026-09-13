@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.12.0 — Unreleased / Sin publicar
+
+- Add allocation-free per-source `setDwellSuppressed` holds for connected idle
+  controllers. Keep hover, releases and explicit buttons; disconnect resumes
+  only after hysteresis, without releasing another source's hold.
+- Skip unavailable native desktop motion backends before creating sensor
+  channels, timers or isolates. Preserve Android/iOS/Web and injected streams.
+
+- Add externally driven simulation steps and copied external interaction rays
+  for retained GPU rendering. Disable the duplicate engine ticker/sensor path
+  when a renderer owns timing; semantic actions can notify HUD observers without
+  advancing the simulation.
+
+- Added renderer-independent `VrSpatialInputState`: time-based locomotion,
+  independent sticks, borrowed-pose copying, shared controller/gaze rays and
+  remote-silence neutralization. `VREngine.bindInput` shares arbitration with demos.
+- Added consumed actions, system-first listeners, a recenter action and held
+  activity refresh without repeated selection. Releases survive priority windows.
+- Fixed CameraRig lookAt/quaternion extraction signs while preserving its
+  established yaw/pitch convention and level horizon.
+- Unified main/isolate sensor fusion using acquisition timestamps, validated
+  gravity, revision-safe recenter and sensor-loss recovery. Removed slow-motion
+  bias learning; yaw still requires calibration and is not drift-free 6DoF.
+- Fixed inertial-tap sampling, lifecycle cancellation and explicit-click gaze
+  handling without reusing a stale target from dwell grace.
+- Experimental 28-byte pose codec preserves stick endpoints and validates exact
+  size. Its absent-axis sentinel changed from ambiguous 32767 to -32768: update
+  both experimental endpoints together. This is not the full joystick protocol.
+- ES: entrada común por frame, selección consumible, recentrado y sensores
+  corregidos; el binario sigue siendo experimental y requiere ambos extremos
+  compatibles. Verificar montaje físico y rendimiento antes de distribuir.
+
 ## 1.11.0 — 2026-09-05
 
 This release reconciles the package manifest (previously `1.8.0`) with the

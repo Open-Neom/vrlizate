@@ -8,10 +8,13 @@ library;
 import 'dart:isolate';
 import 'dart:math';
 
+import 'head_tracking_fusion.dart';
+
 /// Generic handle to a background worker isolate.
 class BackgroundIsolate {
   final ReceivePort _receivePort;
   Isolate? _isolate;
+  bool _disposed = false;
 
   BackgroundIsolate._(this._receivePort);
 
@@ -24,120 +27,79 @@ class BackgroundIsolate {
 
   /// Spawns the worker isolate with [entryPoint].
   Future<void> start(void Function(dynamic) entryPoint) async {
-    _isolate = await Isolate.spawn(entryPoint, _receivePort.sendPort);
+    if (_disposed) return;
+    final isolate = await Isolate.spawn(entryPoint, _receivePort.sendPort);
+    if (_disposed) {
+      isolate.kill(priority: Isolate.immediate);
+    } else {
+      _isolate = isolate;
+    }
   }
 
   /// Kills the isolate and closes the message channel.
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _isolate?.kill(priority: Isolate.beforeNextEvent);
     _isolate = null;
     _receivePort.close();
   }
 }
 
-/// Entry point for the background isolate executing head-tracking
-/// complementary sensor fusion (IMU gyroscope + accelerometer).
-///
-/// Protocol (messages from main thread):
-/// - `[0, alpha, sensitivity, predictionMs, offsetX, offsetY]` — config
-/// - `[1, x, y, z]` — accelerometer sample
-/// - `[2, x, y]` — gyroscope sample (device X = yaw, Y = pitch in landscape)
-///
-/// Emits `[dYaw, dPitch]` rotation deltas per gyroscope sample.
+/// Head-tracking worker using the exact same fusion and signs as the main thread.
+/// Messages carry sensor acquisition timestamps and a reset revision so queued
+/// pre-recenter output cannot rotate a freshly recentered camera.
+/// Protocol:
+/// - [0, sensitivity, predictionMs, offsetX, offsetY, pitchGain, damping, revision]
+/// - [1, accelX, accelY, accelZ]
+/// - [2, gyroX, gyroY, timestampUs, revision]
+/// - [3, revision] resets temporal state, retaining measured gravity.
+/// - [4, revision] invalidates a stale or unavailable gravity reference.
+/// Emits [revision, dYaw, dPitch, absolutePitchOrNull].
 void headTrackingFusionEntry(dynamic mainSendPortArg) {
   final mainSendPort = mainSendPortArg as SendPort;
   final receivePort = ReceivePort();
+  final fusion = HeadTrackingFusion();
+  var revision = 0;
   mainSendPort.send(receivePort.sendPort);
-
-  double yawFused = 0.0;
-  double pitchFused = 0.0;
-  double? prevYawFused;
-  double? prevPitchFused;
-
-  double accelX = 0.0;
-  double accelY = 0.0;
-  double accelZ = 9.8;
-
-  double offsetX = 0.0;
-  double offsetY = 0.0;
-  double alpha = 0.98;
-  double sensitivity = 1.0;
-  double predictionMs = 15.0;
-
-  DateTime? lastTimestamp;
-
   receivePort.listen((message) {
-    if (message is List) {
-      final type = message[0] as int;
-      if (type == 0) {
-        // Configuration: [0, alpha, sensitivity, predictionMs, offsetX, offsetY]
-        alpha = (message[1] as num).toDouble();
-        sensitivity = (message[2] as num).toDouble();
-        predictionMs = (message[3] as num).toDouble();
-        offsetX = (message[4] as num).toDouble();
-        offsetY = (message[5] as num).toDouble();
-      } else if (type == 1) {
-        // Accelerometer: [1, x, y, z]
-        accelX = (message[1] as num).toDouble();
-        accelY = (message[2] as num).toDouble();
-        accelZ = (message[3] as num).toDouble();
-      } else if (type == 2) {
-        // Gyroscope: [2, x, y, z]
-        final gx = (message[1] as num).toDouble();
-        final gy = (message[2] as num).toDouble();
-
-        // Dynamic Auto-Calibrating Anti-Drift:
-        // If the gyroscope velocity is extremely low, adaptively adjust the offsets
-        final double magnitude = sqrt(gx * gx + gy * gy);
-        if (magnitude < 0.015) {
-          offsetX = offsetX * 0.995 + gx * 0.005;
-          offsetY = offsetY * 0.995 + gy * 0.005;
+    if (message is! List) return;
+    switch (message[0]) {
+      case 0:
+        fusion
+          ..sensitivity = (message[1] as num).toDouble()
+          ..predictionMs = (message[2] as num).toDouble()
+          ..offsetX = (message[3] as num).toDouble()
+          ..offsetY = (message[4] as num).toDouble()
+          ..pitchGain = (message[5] as num).toDouble()
+          ..jitterDamping = message[6] as bool;
+        revision = message[7] as int;
+      case 1:
+        fusion.updateGravity(
+          (message[1] as num).toDouble(),
+          (message[2] as num).toDouble(),
+          (message[3] as num).toDouble(),
+        );
+      case 2:
+        if (message[4] != revision) return;
+        if (fusion.addGyroscope(
+          (message[1] as num).toDouble(),
+          (message[2] as num).toDouble(),
+          message[3] as int,
+        )) {
+          mainSendPort.send([
+            revision,
+            fusion.dYaw,
+            fusion.dPitch,
+            fusion.absolutePitch,
+          ]);
         }
-
-        final adjustedX = gx - offsetX;
-        final adjustedY = gy - offsetY;
-
-        // Gravity reference for the pitch channel (device-Y rotation in
-        // landscape): gravity tilts between the X and Z device axes.
-        double gravityPitch() =>
-            atan2(-accelX, sqrt(accelY * accelY + accelZ * accelZ));
-
-        final now = DateTime.now();
-        if (lastTimestamp == null) {
-          lastTimestamp = now;
-          yawFused = 0.0;
-          pitchFused = gravityPitch();
-          prevYawFused = yawFused;
-          prevPitchFused = pitchFused;
-          return;
-        }
-
-        final dt = now.difference(lastTimestamp!).inMicroseconds / 1000000.0;
-        lastTimestamp = now;
-
-        // Yaw (device-X rotation in landscape): gravity does NOT change
-        // under pure yaw, so there is no absolute reference — integrate
-        // the gyroscope directly (bias is handled by the anti-drift offsets).
-        yawFused += adjustedX * dt;
-
-        // Pitch: complementary filter, gyro integration anchored to gravity.
-        pitchFused =
-            alpha * (pitchFused + adjustedY * dt) +
-            (1 - alpha) * gravityPitch();
-
-        // Latency extrapolation prediction
-        final predictionTime = predictionMs / 1000.0;
-        final predictedYaw = yawFused + adjustedX * predictionTime;
-        final predictedPitch = pitchFused + adjustedY * predictionTime;
-
-        final dYaw = predictedYaw - (prevYawFused ?? predictedYaw);
-        final dPitch = predictedPitch - (prevPitchFused ?? predictedPitch);
-
-        prevYawFused = predictedYaw;
-        prevPitchFused = predictedPitch;
-
-        mainSendPort.send([-dYaw * sensitivity, dPitch * sensitivity]);
-      }
+      case 3:
+        revision = message[1] as int;
+        fusion.reset();
+      case 4:
+        revision = message[1] as int;
+        fusion.clearGravity();
     }
   });
 }

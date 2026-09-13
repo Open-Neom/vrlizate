@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vector_math/vector_math.dart';
 
 import 'background_isolate.dart';
+import 'head_tracking_fusion.dart';
+import 'vr_sensor_capabilities.dart';
 
 /// Interface for anything that can receive rotation input.
 abstract class RotationTarget {
@@ -23,26 +24,32 @@ abstract class RotationTarget {
 class HeadTracker {
   final RotationTarget target;
 
-  /// Sensitivity multiplier for gyroscope input.
-  /// 1.0 (default) = true 1:1 head tracking. Values > 1 amplify rotation.
+  /// Scale for gyro yaw and gyro-only relative pitch. Gravity-referenced pitch
+  /// uses [pitchGain] instead. The default applies no additional delta scaling.
   double sensitivity;
 
-  /// Ergonomic pitch multiplier so comfortable neck tilts (±40°) reach the full vertical range.
+  /// Scale for gravity-referenced pitch; 1.0 preserves the measured tilt.
   double pitchGain;
 
   /// Latency prediction compensation in milliseconds.
   double predictionMs;
 
-  /// Whether to use background Isolate for sensor fusion (default: !kIsWeb)
+  /// Whether to use background Isolate for sensor fusion (default: false).
+  /// Platforms without isolate support keep using main-thread fusion.
   final bool useIsolate;
 
   /// Whether gyroscope is available and active.
   bool get isActive => _subscription != null;
 
+  /// Whether a registered platform backend or an injected sensor source can
+  /// be started. This does not claim that hardware is present or sending data.
+  bool get canStart =>
+      VrSensorCapabilities.supportsDeviceMotion ||
+      gyroscopeStreamOverride != null ||
+      accelerometerStreamOverride != null;
+
   StreamSubscription<GyroscopeEvent>? _subscription;
   StreamSubscription<AccelerometerEvent>? _accelSubscription;
-
-  static const double _alpha = 0.98;
 
   double _offsetX = 0;
   double _offsetY = 0;
@@ -51,30 +58,24 @@ class HeadTracker {
   double _calibrationSumX = 0;
   double _calibrationSumY = 0;
 
-  // Running fused states (for main thread web fallback)
-  double _yawFused = 0.0;
-  double _pitchFused = 0.0;
-  double? _prevYawFused;
-  double? _prevPitchFused;
-
-  // Latest accelerometer readings
-  double _accelX = 0.0;
-  double _accelZ = 9.8;
+  final HeadTrackingFusion _fusion = HeadTrackingFusion();
+  AccelerometerEvent? _lastGravityEvent;
 
   // DSD (Dynamic Sensor Diagnostics) fallback states
-  bool isGyroscopeActive = true;
-  int _gyroEventsCount = 0;
+  bool isGyroscopeActive = false;
+  int _silentIntervals = 0;
+  int _gravitySilentIntervals = 0;
   double _smoothPitch = 0.0;
-
-  DateTime? _lastTimestamp;
+  bool _running = false;
+  int _session = 0;
+  int _workerRevision = 0;
+  Timer? _calibrationTimer;
+  Timer? _healthTimer;
 
   BackgroundIsolate? _fusionIsolate;
   // The worker's SendPort (typed dynamically to stay WASM-compatible).
   dynamic _isolateSendPort;
-
-  // Damping states
-  double _dampedDYaw = 0.0;
-  double _dampedDPitch = 0.0;
+  StreamSubscription<dynamic>? _workerSubscription;
 
   /// Whether high-frequency sensor jitter damping is active.
   bool jitterDamping;
@@ -112,259 +113,245 @@ class HeadTracker {
     );
   }
 
-  /// Starts gyroscope tracking. Calls [calibrate] automatically.
+  /// Starts tracking. Keep the device still during the one-second calibration.
   void start() {
     stop();
+    if (!canStart) return;
+    _running = true;
+    final session = _session;
+    _offsetX = 0;
+    _offsetY = 0;
+    _fusion.reset(clearGravity: true);
+    _lastGravityEvent = null;
+    _silentIntervals = 0;
+    _gravitySilentIntervals = 0;
+    _smoothPitch = 0;
     calibrate();
 
-    _lastTimestamp = null;
-    _prevYawFused = null;
-    _prevPitchFused = null;
-    _yawFused = 0.0;
-    _pitchFused = 0.0;
-
-    _gyroEventsCount = 0;
-    isGyroscopeActive = true;
-    _smoothPitch = 0.0;
-
-    // Detect if gyroscope is present and active within 800ms
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (_gyroEventsCount == 0) {
-        isGyroscopeActive = false;
+    // One timer, not a newly allocated timer per 60–120 Hz sample.
+    _healthTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (!_running || session != _session) return;
+      if (++_silentIntervals >= 4 && isGyroscopeActive) {
+        _loseGyroscope();
+      }
+      if (++_gravitySilentIntervals >= 4 && _lastGravityEvent != null) {
+        _loseGravity();
       }
     });
 
-    if (!useIsolate) {
-      // Main-thread Direct Low-Latency Fusion
-      _accelSubscription =
-          (accelerometerStreamOverride ??
-                  accelerometerEventStream(
-                    samplingPeriod: SensorInterval.fastestInterval,
-                  ))
-              .listen((event) {
-                _accelX = event.x;
-                _accelZ = event.z;
+    if (useIsolate) _startWorker(session);
+    // An injected stream may work on desktop even though the native backend
+    // does not. In that case never fill a missing channel with a plugin call.
+    final platformSensors = VrSensorCapabilities.supportsDeviceMotion;
+    final accelerationEvents =
+        accelerometerStreamOverride ??
+        (platformSensors
+            ? accelerometerEventStream(
+                samplingPeriod: SensorInterval.fastestInterval,
+              )
+            : null);
+    _accelSubscription = accelerationEvents?.listen(
+      (event) {
+        if (!_running || session != _session) return;
+        if (!_fusion.updateGravity(event.x, event.y, event.z)) return;
+        _lastGravityEvent = event;
+        _gravitySilentIntervals = 0;
+        _isolateSendPort?.send([1, event.x, event.y, event.z]);
+        if (!isGyroscopeActive) {
+          _smoothPitch = _smoothPitch * 0.85 + _fusion.gravityPitch! * 0.15;
+          target.setPitch(_smoothPitch * pitchGain);
+        }
+      },
+      onError: (Object error) {
+        if (_running && session == _session) _loseGravity();
+      },
+      onDone: () {
+        if (_running && session == _session) _loseGravity();
+      },
+    );
 
-                if (!isGyroscopeActive) {
-                  _updateFromAccelerometerOnly(event.x, event.y, event.z);
-                }
-              });
+    final gyroscopeEvents =
+        gyroscopeStreamOverride ??
+        (platformSensors
+            ? gyroscopeEventStream(
+                samplingPeriod: SensorInterval.fastestInterval,
+              )
+            : null);
+    _subscription = gyroscopeEvents?.listen(
+      (event) {
+        if (!_running ||
+            session != _session ||
+            !event.x.isFinite ||
+            !event.y.isFinite ||
+            !event.z.isFinite) {
+          return;
+        }
+        _silentIntervals = 0;
+        if (!isGyroscopeActive) _resetFusion();
+        isGyroscopeActive = true;
+        if (_calibrating) {
+          _calibrationSumX += event.x;
+          _calibrationSumY += event.y;
+          _calibrationSamples++;
+          return;
+        }
+        final timestampUs = event.timestamp.microsecondsSinceEpoch;
+        if (_isolateSendPort != null) {
+          _sendConfiguration();
+          _isolateSendPort.send([
+            2,
+            event.x,
+            event.y,
+            timestampUs,
+            _workerRevision,
+          ]);
+        } else {
+          _configureFusion();
+          if (_fusion.addGyroscope(event.x, event.y, timestampUs)) {
+            _applyFusion(_fusion.dYaw, _fusion.dPitch, _fusion.absolutePitch);
+          }
+        }
+      },
+      onError: (Object error) {
+        if (_running && session == _session) _loseGyroscope();
+      },
+      onDone: () {
+        if (_running && session == _session) _loseGyroscope();
+      },
+    );
+  }
 
-      _subscription =
-          (gyroscopeStreamOverride ??
-                  gyroscopeEventStream(
-                    samplingPeriod: SensorInterval.fastestInterval,
-                  ))
-              .listen((event) {
-                _gyroEventsCount++;
-                isGyroscopeActive = true;
+  void _configureFusion() {
+    _fusion
+      ..sensitivity = sensitivity
+      ..pitchGain = pitchGain
+      ..predictionMs = predictionMs
+      ..jitterDamping = jitterDamping
+      ..offsetX = _offsetX
+      ..offsetY = _offsetY;
+  }
 
-                if (_calibrating) {
-                  _calibrationSumX += event.x;
-                  _calibrationSumY += event.y;
-                  _calibrationSamples++;
-                  return;
-                }
-
-                // Dynamic Auto-Calibrating Anti-Drift:
-                // If the gyroscope velocity is extremely low, adaptively adjust the offsets
-                final double magnitude = sqrt(
-                  event.x * event.x + event.y * event.y,
-                );
-                if (magnitude < 0.015) {
-                  _offsetX = _offsetX * 0.995 + event.x * 0.005;
-                  _offsetY = _offsetY * 0.995 + event.y * 0.005;
-                }
-
-                double adjustedX = event.x - _offsetX;
-                double adjustedY = event.y - _offsetY;
-
-                // Deadband for stationary stillness:
-                // When handheld or resting, micro-tremors under 0.002 rad/s (~0.1°/s) are clamped to 0.
-                // This completely eliminates phantom rotational drift.
-                if (adjustedX.abs() < 0.002) adjustedX = 0.0;
-                if (adjustedY.abs() < 0.002) adjustedY = 0.0;
-
-                // Gravity reference for pitch channel in Landscape Left:
-                // Horizon (0°): accelX ≈ +9.8, accelZ ≈ 0 -> atan2(0, 9.8) = 0.0
-                // Look up (ceiling): atan2(+9.8, 0) = +1.57 rad -> clamped to 1.45 (±83°)
-                // Look down (feet): atan2(-9.8, 0) = -1.57 rad -> clamped to -1.45
-                double gravityPitch() {
-                  final ax = _accelX.abs() < 0.01 ? 0.01 : _accelX;
-                  return atan2(_accelZ, ax).clamp(-1.45, 1.45);
-                }
-
-                final now = DateTime.now();
-                if (_lastTimestamp == null) {
-                  _lastTimestamp = now;
-                  _yawFused = 0.0;
-                  _pitchFused = gravityPitch();
-                  _prevYawFused = _yawFused;
-                  _prevPitchFused = _pitchFused;
-                  target.setPitch(_pitchFused * pitchGain);
-                  return;
-                }
-
-                final dt =
-                    now.difference(_lastTimestamp!).inMicroseconds / 1000000.0;
-                _lastTimestamp = now;
-
-                // Yaw in Landscape Left: turning head LEFT produces adjustedX > 0,
-                // so +adjustedX increases camera yaw (looking left).
-                _yawFused += adjustedX * dt;
-
-                // Pitch in Landscape Left: tilting head UP increases camera pitch (looking up).
-                _pitchFused =
-                    _alpha * (_pitchFused + adjustedY * dt) +
-                    (1 - _alpha) * gravityPitch();
-
-                final predictionTime = predictionMs / 1000.0;
-                final predictedYaw = _yawFused + adjustedX * predictionTime;
-                final predictedPitch =
-                    (_pitchFused * pitchGain + adjustedY * predictionTime).clamp(-1.45, 1.45);
-
-                final dYaw = predictedYaw - (_prevYawFused ?? predictedYaw);
-                final dPitch =
-                    predictedPitch - (_prevPitchFused ?? predictedPitch);
-
-                _prevYawFused = predictedYaw;
-                _prevPitchFused = predictedPitch;
-
-                if (jitterDamping) {
-                  // Deadband for tiny sensor vibrations
-                  final rawDYaw = dYaw.abs() < 0.00015 ? 0.0 : dYaw;
-                  final rawDPitch = dPitch.abs() < 0.00015 ? 0.0 : dPitch;
-                  // Fast exponential filter
-                  _dampedDYaw = _dampedDYaw * 0.15 + rawDYaw * 0.85;
-                  _dampedDPitch = _dampedDPitch * 0.15 + rawDPitch * 0.85;
-                  target.rotate(
-                    _dampedDYaw * sensitivity,
-                    _dampedDPitch * sensitivity,
-                  );
-                } else {
-                  target.rotate(
-                    dYaw * sensitivity,
-                    dPitch * sensitivity,
-                  );
-                }
-
-                // Anchor pitch directly to physical gravity: guaranteed level horizon and zero drift.
-                target.setPitch(predictedPitch);
-              });
+  void _sendConfiguration({bool force = false}) {
+    if (!force &&
+        _fusion.sensitivity == sensitivity &&
+        _fusion.pitchGain == pitchGain &&
+        _fusion.predictionMs == predictionMs &&
+        _fusion.jitterDamping == jitterDamping &&
+        _fusion.offsetX == _offsetX &&
+        _fusion.offsetY == _offsetY) {
       return;
     }
+    _configureFusion();
+    _isolateSendPort?.send([
+      0,
+      sensitivity,
+      predictionMs,
+      _offsetX,
+      _offsetY,
+      pitchGain,
+      jitterDamping,
+      _workerRevision,
+    ]);
+  }
 
-    // Native Platform: Background Isolate Setup
-    final fusionIsolate = BackgroundIsolate.create();
-    _fusionIsolate = fusionIsolate;
-
-    fusionIsolate.messages.listen((message) {
+  void _startWorker(int session) {
+    final worker = BackgroundIsolate.create();
+    _fusionIsolate = worker;
+    _workerSubscription = worker.messages.listen((message) {
+      if (!_running || session != _session) return;
       if (message is List) {
-        final dYaw = (message[0] as num).toDouble();
-        final dPitch = (message[1] as num).toDouble();
-        target.rotate(dYaw, dPitch);
+        if (_calibrating ||
+            !isGyroscopeActive ||
+            message[0] != _workerRevision) {
+          return;
+        }
+        _applyFusion(
+          (message[1] as num).toDouble(),
+          (message[2] as num).toDouble(),
+          (message[3] as num?)?.toDouble(),
+        );
       } else {
-        // First message: the worker's SendPort (two-way channel)
         _isolateSendPort = message;
-        _isolateSendPort.send([
-          0,
-          _alpha,
-          sensitivity,
-          predictionMs,
-          _offsetX,
-          _offsetY,
-        ]);
+        _sendConfiguration(force: true);
+        final gravity = _lastGravityEvent;
+        if (gravity != null) {
+          _isolateSendPort.send([1, gravity.x, gravity.y, gravity.z]);
+        }
       }
     });
-
-    fusionIsolate.start(headTrackingFusionEntry);
-
-    _accelSubscription =
-        (accelerometerStreamOverride ??
-                accelerometerEventStream(
-                  samplingPeriod: SensorInterval.fastestInterval,
-                ))
-            .listen((event) {
-              _isolateSendPort?.send([1, event.x, event.y, event.z]);
-
-              if (!isGyroscopeActive) {
-                _updateFromAccelerometerOnly(event.x, event.y, event.z);
-              }
-            });
-
-    _subscription =
-        (gyroscopeStreamOverride ??
-                gyroscopeEventStream(
-                  samplingPeriod: SensorInterval.fastestInterval,
-                ))
-            .listen((event) {
-              _gyroEventsCount++;
-              isGyroscopeActive = true;
-
-              if (_calibrating) {
-                _calibrationSumX += event.x;
-                _calibrationSumY += event.y;
-                _calibrationSamples++;
-                return;
-              }
-              _isolateSendPort?.send([2, event.x, event.y, event.z]);
-            });
+    unawaited(
+      worker.start(headTrackingFusionEntry).catchError((Object error) {
+        if (!_running || session != _session) return;
+        _workerSubscription?.cancel();
+        _workerSubscription = null;
+        worker.dispose();
+        _fusionIsolate = null;
+        _isolateSendPort = null;
+        _fusion.reset();
+        // Subsequent samples transparently use the same fusion on the main thread.
+      }),
+    );
   }
 
-  /// Estimates pitch (tilt up/down) directly from gravity when no gyroscope is available.
-  void _updateFromAccelerometerOnly(double ax, double ay, double az) {
-    final axSafe = ax.abs() < 0.01 ? 0.01 : ax;
-    final double pitch = atan2(az, axSafe);
-
-    // Low-pass filter to smooth hand jitters
-    _smoothPitch = _smoothPitch * 0.85 + pitch * 0.15;
-    target.setPitch(_smoothPitch * pitchGain);
+  void _applyFusion(double dYaw, double dPitch, double? pitch) {
+    if (dYaw != 0 || dPitch != 0) target.rotate(dYaw, dPitch);
+    if (pitch != null) target.setPitch(pitch);
   }
 
-  /// Calibrates gyroscope by averaging drift over 1 second.
+  void _resetFusion() {
+    _fusion.reset();
+    _workerRevision++;
+    _isolateSendPort?.send([3, _workerRevision]);
+  }
+
+  void _loseGyroscope() {
+    isGyroscopeActive = false;
+    _resetFusion();
+    _smoothPitch = _fusion.gravityPitch ?? 0;
+  }
+
+  void _loseGravity() {
+    _lastGravityEvent = null;
+    _fusion.clearGravity();
+    _workerRevision++;
+    _isolateSendPort?.send([4, _workerRevision]);
+  }
+
+  /// Averages gyro bias over one second while the device is stationary.
+  /// Slow motion is not automatically treated as bias during normal tracking.
   void calibrate() {
+    _calibrationTimer?.cancel();
     _calibrating = true;
     _calibrationSamples = 0;
     _calibrationSumX = 0;
     _calibrationSumY = 0;
-
-    Future.delayed(const Duration(seconds: 1), () {
+    _resetFusion();
+    final session = _session;
+    _calibrationTimer = Timer(const Duration(seconds: 1), () {
+      if (!_running || session != _session) return;
       if (_calibrationSamples > 0) {
         _offsetX = _calibrationSumX / _calibrationSamples;
         _offsetY = _calibrationSumY / _calibrationSamples;
-        // Update background isolate config
-        _isolateSendPort?.send([
-          0,
-          _alpha,
-          sensitivity,
-          predictionMs,
-          _offsetX,
-          _offsetY,
-        ]);
       }
-      _lastTimestamp = null;
-      _yawFused = 0.0;
-      _prevYawFused = null;
-      _prevPitchFused = null;
-      _dampedDYaw = 0.0;
-      _dampedDPitch = 0.0;
+      _resetFusion();
+      _configureFusion();
+      _sendConfiguration(force: true);
       _calibrating = false;
     });
   }
 
-  /// Recenters the horizontal head-tracking azimuth (Yaw = 0°) and aligns pitch with gravity.
+  /// Recenters yaw without inventing pitch when no valid gravity sample exists.
   void recenter() {
-    _yawFused = 0.0;
-    _prevYawFused = null;
+    _resetFusion();
     target.recenter();
-
-    final ax = _accelX.abs() < 0.01 ? 0.01 : _accelX;
-    _pitchFused = atan2(_accelZ, ax);
-    _prevPitchFused = _pitchFused;
-    target.setPitch(_pitchFused * pitchGain);
+    final gravity = _fusion.gravityPitch;
+    if (gravity != null) {
+      _smoothPitch = gravity;
+      target.setPitch(gravity * pitchGain);
+    }
   }
 
-  /// Applies touch/pan input as rotation (fallback when no gyroscope).
+  /// Applies touch/pan rotation when no live gyroscope is delivering samples.
   void applyTouchDelta(
     double dx,
     double dy, {
@@ -374,16 +361,27 @@ class HeadTracker {
     target.rotate(-dx * touchSensitivity, -dy * touchSensitivity);
   }
 
-  /// Stops gyroscope tracking.
+  /// Stops streams, timers, queued worker output and any pending calibration.
   void stop() {
+    _running = false;
+    _session++;
+    _calibrationTimer?.cancel();
+    _calibrationTimer = null;
+    _healthTimer?.cancel();
+    _healthTimer = null;
+    _calibrating = false;
+    isGyroscopeActive = false;
     _subscription?.cancel();
     _subscription = null;
     _accelSubscription?.cancel();
     _accelSubscription = null;
-
+    _workerSubscription?.cancel();
+    _workerSubscription = null;
     _fusionIsolate?.dispose();
     _fusionIsolate = null;
     _isolateSendPort = null;
+    _lastGravityEvent = null;
+    _fusion.reset(clearGravity: true);
   }
 
   void dispose() {

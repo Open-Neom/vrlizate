@@ -8,7 +8,7 @@
 
 VRlizate es un motor 3D/VR Open Source escrito en Dart para crear experiencias
 inmersivas accesibles desde smartphones y aplicaciones Flutter. El paquete
-`vrlizate` está en la versión **1.11.0**; el objetivo del ecosistema abierto es
+`vrlizate` prepara la versión **1.12.0 (sin publicar)**; el objetivo del ecosistema abierto es
 ofrecer un núcleo verificable y extensible: un mismo
 formato de escenas e interacción que pueda adaptarse desde teléfonos económicos
 hasta dispositivos con seguimiento avanzado.
@@ -17,7 +17,24 @@ hasta dispositivos con seguimiento avanzado.
 > verifican por dispositivo; las funciones opcionales requieren integración de
 > la aplicación anfitriona.
 
-## Qué incluye 1.11.0
+## Preparación 1.12.0 / Unreleased
+
+`VrSpatialInputState` unifica ejes (+X derecha, +Y adelante/arriba), rayo del
+mando/mirada y caducidad del estado remoto. `VREngine.bindInput(arbiter)` aplica
+movimiento por frame y comparte supresión del dwell. Copiar los datos prestados
+del evento; consumir acciones atendidas con `event.consume()` y comprobar
+`event.handled`. Soltar un control nunca debe quedar bloqueado por prioridad.
+
+CameraRig conserva yaw positivo hacia +X y pitch positivo hacia -Y; `lookAt`
+y la extracción de quaternion respetan esa convención. La fusión usa timestamps
+de adquisición, no promete yaw sin deriva ni seguimiento posicional 6DoF.
+
+EN: this unpublished checkpoint adds shared frame-based input, consumed actions,
+current controller rays and timestamp-based sensor fusion. Publish core before
+dependent scene/joystick versions. The experimental binary pose codec is not
+the full JSON controller protocol; both binary endpoints must be updated together.
+
+## Base publicada 1.11.0
 
 - Escenas 3D con perfiles Lite/Standard/High y consultas de sombras acotadas.
 - Protocolo padre/hijo, transporte TCP local autenticado y controlador IMU 3DoF.

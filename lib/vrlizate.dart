@@ -44,6 +44,8 @@ export 'core/input/input_fusion.dart';
 export 'core/input/ultrasonic_gesture.dart';
 export 'core/input/vr_input_arbiter.dart';
 export 'core/input/vr_input_event_bus.dart';
+export 'core/input/vr_sensor_capabilities.dart';
+export 'core/input/vr_spatial_input_state.dart';
 export 'core/input/wifi_rtt.dart';
 export 'core/input/wifi_sensing.dart';
 

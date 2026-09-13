@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:vrlizate/vrlizate.dart';
@@ -25,7 +26,10 @@ void main() {
     });
 
     test('round-trips pose frame with high fidelity', () {
-      final originalRot = Quaternion.axisAngle(Vector3(0.577, 0.577, 0.577).normalized(), 1.25);
+      final originalRot = Quaternion.axisAngle(
+        Vector3(0.577, 0.577, 0.577).normalized(),
+        1.25,
+      );
       final frame = VrRemotePoseFrame(
         sequence: 32000,
         senderTimestampMicroseconds: 12345678,
@@ -41,15 +45,19 @@ void main() {
 
       expect(decoded.sequence, equals(32000));
       // Timestamp lower 32 bits preserved
-      expect(decoded.senderTimestampMicroseconds, equals(12345678 & 0xFFFFFFFF));
+      expect(
+        decoded.senderTimestampMicroseconds,
+        equals(12345678 & 0xFFFFFFFF),
+      );
       expect(decoded.buttonsBitset, equals(0x00A3));
 
       // Orientation quaternion accuracy: dot product with original should be very close to 1.0
-      final dot = (originalRot.x * decoded.qx +
-              originalRot.y * decoded.qy +
-              originalRot.z * decoded.qz +
-              originalRot.w * decoded.qw)
-          .abs();
+      final dot =
+          (originalRot.x * decoded.qx +
+                  originalRot.y * decoded.qy +
+                  originalRot.z * decoded.qz +
+                  originalRot.w * decoded.qw)
+              .abs();
       expect(dot, greaterThan(0.9999));
 
       // Angular velocity precision (scaled by 100.0)
@@ -78,12 +86,74 @@ void main() {
 
       expect(decoded.touchX, isNull);
       expect(decoded.touchY, isNull);
+      expect(ByteData.sublistView(bytes).getInt16(24), -32768);
+      expect(ByteData.sublistView(bytes).getInt16(26), -32768);
+    });
+
+    test('round-trips every combination of touch endpoints and center', () {
+      for (final x in [0.0, 0.5, 1.0]) {
+        for (final y in [0.0, 0.5, 1.0]) {
+          final decoded = codec.decodePose(
+            codec.encodePose(
+              VrRemotePoseFrame(
+                sequence: 0,
+                senderTimestampMicroseconds: 0,
+                orientation: Quaternion.identity(),
+                touchX: x,
+                touchY: y,
+              ),
+            ),
+          );
+          expect(decoded.touchX, closeTo(x, 1 / 32767));
+          expect(decoded.touchY, closeTo(y, 1 / 32767));
+        }
+      }
+    });
+
+    test('rejects truncated, oversized, and invalid touch pose packets', () {
+      final bytes = codec.encodePose(
+        VrRemotePoseFrame(
+          sequence: 0,
+          senderTimestampMicroseconds: 0,
+          orientation: Quaternion.identity(),
+        ),
+      );
+      for (final length in [0, 27, 29, 8192]) {
+        expect(
+          () => codec.decodePose(Uint8List(length)),
+          throwsFormatException,
+        );
+      }
+      // Touch coordinates are both null or both in 0..32767.
+      for (final raw in [-32767, -1, 0, 32767]) {
+        final malformed = Uint8List.fromList(bytes);
+        ByteData.sublistView(malformed).setInt16(24, raw);
+        expect(() => codec.decodePose(malformed), throwsFormatException);
+      }
+    });
+
+    test('wire sequence wraps at 16 bits', () {
+      for (final sequence in [65535, 65536, 65537]) {
+        final decoded = codec.decodePose(
+          codec.encodePose(
+            VrRemotePoseFrame(
+              sequence: sequence,
+              senderTimestampMicroseconds: 0,
+              orientation: Quaternion.identity(),
+            ),
+          ),
+        );
+        expect(decoded.sequence, sequence & 0xFFFF);
+      }
     });
 
     test('detects binary packet headers correctly', () {
       final valid = codec.encodeHeartbeat(id: 1, timestampUs: 100);
       expect(VrRemoteBinaryCodec.isBinaryPacket(valid), isTrue);
-      expect(VrRemoteBinaryCodec.inspectPacketType(valid), equals(VrRemoteBinaryCodec.packetTypeHeartbeat));
+      expect(
+        VrRemoteBinaryCodec.inspectPacketType(valid),
+        equals(VrRemoteBinaryCodec.packetTypeHeartbeat),
+      );
 
       final invalid = [0x7B, 0x22]; // '{"' (JSON start)
       expect(VrRemoteBinaryCodec.isBinaryPacket(invalid), isFalse);
@@ -107,16 +177,30 @@ void main() {
       expect(decoded.type, equals(VrInputType.trigger));
       expect(decoded.source, equals(VrInputSource.remotePhone));
       expect(decoded.active, isTrue);
+      for (final length in [15, 17]) {
+        expect(
+          () => codec.decodeInputEvent(Uint8List(length)),
+          throwsFormatException,
+        );
+      }
     });
 
     test('encodes heartbeat packets (12 bytes)', () {
-      final ping = codec.encodeHeartbeat(id: 42, timestampUs: 1024, isPong: false);
+      final ping = codec.encodeHeartbeat(
+        id: 42,
+        timestampUs: 1024,
+        isPong: false,
+      );
       expect(ping.length, equals(VrRemoteBinaryCodec.heartbeatPacketLength));
       expect(ping[0], equals(VrRemoteBinaryCodec.magicByte));
       expect(ping[1], equals(VrRemoteBinaryCodec.packetTypeHeartbeat));
       expect(ping[2], equals(0)); // isPong = false
 
-      final pong = codec.encodeHeartbeat(id: 42, timestampUs: 1024, isPong: true);
+      final pong = codec.encodeHeartbeat(
+        id: 42,
+        timestampUs: 1024,
+        isPong: true,
+      );
       expect(pong[2], equals(1)); // isPong = true
     });
   });

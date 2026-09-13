@@ -49,10 +49,10 @@ class CameraRig implements RotationTarget {
   double _yaw = 0.0;
   double _pitch = 0.0;
 
-  /// Horizontal azimuth angle (radians).
+  /// Horizontal angle in radians. Positive yaw turns forward toward world +X.
   double get yaw => _yaw;
 
-  /// Vertical elevation angle (radians).
+  /// Vertical angle in radians. Positive pitch turns forward toward world -Y.
   double get pitch => _pitch;
 
   CameraRig({
@@ -75,15 +75,16 @@ class CameraRig implements RotationTarget {
     final f = headTransform.forward;
     final horizontalDist = sqrt(f.x * f.x + f.z * f.z);
     if (horizontalDist > 0.0001) {
-      _yaw = atan2(-f.x, -f.z);
+      _yaw = atan2(f.x, -f.z);
     }
-    _pitch = asin(f.y.clamp(-0.999, 0.999));
+    _pitch = asin(-f.y.clamp(-1.0, 1.0)).clamp(-1.45, 1.45);
   }
 
   void _applyOrientation() {
-    // Stable Horizon (0° Roll):
-    // qYaw rotates around World Vertical Y-Axis (Vector3(0, 1, 0)) -> ground plane is always level!
-    // qPitch rotates around Camera Local Horizontal X-Axis -> elevation clamped to prevent flipping.
+    // vector_math's Quaternion.rotated convention gives forward =
+    // (sin(yaw)*cos(pitch), -sin(pitch), -cos(yaw)*cos(pitch)).
+    // Keep this established rotate/setOrientation convention and compose in
+    // this order so the right vector stays horizontal (zero roll).
     final qYaw = Quaternion.axisAngle(Vector3(0, 1, 0), _yaw);
     final qPitch = Quaternion.axisAngle(Vector3(1, 0, 0), _pitch);
     headTransform.rotation = (qPitch * qYaw)..normalize();
@@ -97,8 +98,7 @@ class CameraRig implements RotationTarget {
     _applyOrientation();
   }
 
-  /// Sets the vertical elevation (pitch) directly in radians.
-  /// Anchored to physical gravity so the horizon remains level and drift-free.
+  /// Sets pitch directly in radians; positive values look down.
   @override
   void setPitch(double pitch) {
     _pitch = pitch.clamp(-1.45, 1.45);
@@ -194,12 +194,19 @@ class CameraRig implements RotationTarget {
   }
 
   void lookAt(Vector3 target) {
-    final dir = (target - position).normalized();
+    final dir = target - position;
+    if (!dir.x.isFinite ||
+        !dir.y.isFinite ||
+        !dir.z.isFinite ||
+        dir.length2 < 1e-12) {
+      return;
+    }
+    dir.normalize();
     final horizontalDist = sqrt(dir.x * dir.x + dir.z * dir.z);
     if (horizontalDist > 0.0001) {
-      _yaw = atan2(-dir.x, -dir.z);
+      _yaw = atan2(dir.x, -dir.z);
     }
-    _pitch = asin(dir.y.clamp(-0.999, 0.999));
+    _pitch = asin(-dir.y.clamp(-1.0, 1.0)).clamp(-1.45, 1.45);
     _applyOrientation();
   }
 

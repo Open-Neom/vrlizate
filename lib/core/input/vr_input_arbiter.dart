@@ -187,6 +187,7 @@ class VrInputArbiter {
   );
 
   int _dispatchDepth = 0;
+  int _dwellSuppressionSources = 0;
   bool _disposed = false;
 
   VrInputArbiter({
@@ -221,12 +222,39 @@ class VrInputArbiter {
 
   /// Whether a gaze dwell selection would be suppressed right now.
   bool get isGazeSuppressed =>
+      _dwellSuppressionSources != 0 ||
       _hasActiveHigherPriority(VrInputPriority.base, _clock());
 
-  void addListener(VrInputListener listener) {
+  /// Keeps automatic gaze selection disabled while a controller is connected,
+  /// including when it is idle. Hover and explicit button events still work.
+  /// Each source owns its bit; disconnecting one cannot unlock another source.
+  /// Releasing a hold retains the normal hysteresis window before dwell resumes.
+  void setDwellSuppressed(VrInputSource source, bool suppressed) {
+    _ensureAlive();
+    if (source == VrInputSource.gaze) {
+      throw ArgumentError.value(source, 'source', 'Use a non-gaze source.');
+    }
+    final bit = 1 << source.index;
+    if (suppressed) {
+      _dwellSuppressionSources |= bit;
+    } else if ((_dwellSuppressionSources & bit) != 0) {
+      _dwellSuppressionSources &= ~bit;
+      markActive(source);
+    }
+  }
+
+  /// [first] reserves a pre-dispatch phase for system navigation/ray updates.
+  /// Normal action listeners must check [VrInputEvent.handled].
+  void addListener(VrInputListener listener, {bool first = false}) {
     _ensureAlive();
     _ensureListenersCanChange();
-    if (!_listeners.contains(listener)) _listeners.add(listener);
+    if (!_listeners.contains(listener)) {
+      if (first) {
+        _listeners.insert(0, listener);
+      } else {
+        _listeners.add(listener);
+      }
+    }
   }
 
   bool removeListener(VrInputListener listener) {
@@ -261,6 +289,16 @@ class VrInputArbiter {
     return _submit(event, priorityOf(event.source));
   }
 
+  /// Refreshes suppression for a held control without re-emitting its action.
+  /// Call only while actively manipulated, never for an idle heartbeat.
+  void markActive(VrInputSource source) {
+    _ensureAlive();
+    final priority = priorityOf(source);
+    if (priority != VrInputPriority.base) {
+      _lastActiveAt[priority.index] = _clock();
+    }
+  }
+
   bool _submit(VrInputEvent event, VrInputPriority priority) {
     _ensureAlive();
     final now = _clock();
@@ -269,8 +307,12 @@ class VrInputArbiter {
       _lastActiveAt[priority.index] = now;
     }
 
-    if (event.type != VrInputType.hover &&
-        _hasActiveHigherPriority(priority, now)) {
+    // A release must never be lost behind another source's priority window.
+    if (event.active &&
+        event.type != VrInputType.hover &&
+        ((event.source == VrInputSource.gaze &&
+                _dwellSuppressionSources != 0) ||
+            _hasActiveHigherPriority(priority, now))) {
       return false;
     }
 

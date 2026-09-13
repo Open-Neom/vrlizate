@@ -91,6 +91,59 @@ void main() {
       expect(delivered, 2);
     });
 
+    test('connected idle controller blocks dwell but not hover or A', () {
+      arbiter.setDwellSuppressed(VrInputSource.remotePhone, true);
+      now = const Duration(hours: 1).inMicroseconds;
+      expect(arbiter.isGazeSuppressed, isTrue);
+      expect(
+        arbiter.emit(type: VrInputType.select, source: VrInputSource.gaze),
+        isFalse,
+      );
+      expect(
+        arbiter.emit(type: VrInputType.hover, source: VrInputSource.gaze),
+        isTrue,
+      );
+      expect(
+        arbiter.emit(
+          type: VrInputType.select,
+          source: VrInputSource.remotePhone,
+        ),
+        isTrue,
+      );
+      expect(
+        arbiter.emit(
+          type: VrInputType.select,
+          source: VrInputSource.gaze,
+          active: false,
+        ),
+        isTrue,
+      );
+      arbiter.setDwellSuppressed(VrInputSource.remotePhone, false);
+      now += 399999;
+      expect(arbiter.isGazeSuppressed, isTrue);
+      now++;
+      expect(arbiter.isGazeSuppressed, isFalse);
+    });
+
+    test(
+      'dwell holds are independent and repeated connection is idempotent',
+      () {
+        arbiter.setDwellSuppressed(VrInputSource.remotePhone, true);
+        arbiter.setDwellSuppressed(VrInputSource.remotePhone, true);
+        arbiter.setDwellSuppressed(VrInputSource.gamepad, true);
+        arbiter.setDwellSuppressed(VrInputSource.remotePhone, false);
+        now += 1000000;
+        expect(arbiter.isGazeSuppressed, isTrue);
+        arbiter.setDwellSuppressed(VrInputSource.gamepad, false);
+        now += 400000;
+        expect(arbiter.isGazeSuppressed, isFalse);
+        expect(
+          () => arbiter.setDwellSuppressed(VrInputSource.gaze, true),
+          throwsArgumentError,
+        );
+      },
+    );
+
     test('reuses pooled events without leaks', () {
       final first = arbiter.acquire(
         type: VrInputType.hover,

@@ -7,6 +7,65 @@ import 'package:vrlizate/vrlizate.dart';
 
 void main() {
   group('CameraRig', () {
+    test('lookAt aligns forward with targets in every horizontal quadrant', () {
+      final rig = CameraRig()..position = Vector3(0.3, 1.6, 0.7);
+      for (final direction in [
+        Vector3(1, 2, -3),
+        Vector3(-2, -1, -4),
+        Vector3(2, 1, 3),
+        Vector3(-2, -1, 3),
+      ]) {
+        rig.lookAt(rig.position + direction);
+        expect(
+          rig.headTransform.forward.dot(direction.normalized()),
+          closeTo(1, 1e-6),
+        );
+        expect(rig.headTransform.right.y, closeTo(0, 1e-6));
+      }
+    });
+
+    test('positive yaw looks right and positive pitch looks down', () {
+      final rig = CameraRig()..setOrientation(0.5, 0.3);
+      final forward = rig.headTransform.forward;
+      expect(forward.x, closeTo(sin(0.5) * cos(0.3), 1e-6));
+      expect(forward.y, closeTo(-sin(0.3), 1e-6));
+      expect(forward.z, closeTo(-cos(0.5) * cos(0.3), 1e-6));
+    });
+
+    test(
+      'constructor and rotation setter round-trip yaw/pitch without a flip',
+      () {
+        final source = CameraRig()..setOrientation(-0.8, 0.6);
+        final fromTransform = CameraRig(
+          headTransform: source.headTransform.clone(),
+        );
+        final fromSetter = CameraRig()..rotation = source.rotation.clone();
+        for (final rig in [fromTransform, fromSetter]) {
+          expect(rig.yaw, closeTo(-0.8, 1e-6));
+          expect(rig.pitch, closeTo(0.6, 1e-6));
+          rig.rotate(0, 0);
+          expect(
+            rig.headTransform.forward.dot(source.headTransform.forward),
+            closeTo(1, 1e-6),
+          );
+        }
+      },
+    );
+
+    test(
+      'lookAt coincident target is a no-op and vertical targets stay upright',
+      () {
+        final rig = CameraRig()..setOrientation(0.5, -0.3);
+        rig.lookAt(rig.position.clone());
+        expect(rig.yaw, closeTo(0.5, 1e-6));
+        expect(rig.pitch, closeTo(-0.3, 1e-6));
+        rig.lookAt(rig.position + Vector3(0, 1, 0));
+        expect(rig.pitch, -1.45);
+        expect(rig.headTransform.forward.y, greaterThan(0.99));
+        expect(rig.headTransform.up.y, greaterThan(0));
+      },
+    );
+
     test('default position is origin', () {
       final rig = CameraRig();
       expect(rig.position.x, closeTo(0, 1e-6));
@@ -165,12 +224,18 @@ void main() {
         rig.setOrientation(yaw, pitch);
 
         // Right vector must remain strictly horizontal (Y = 0)
-        expect(rig.headTransform.right.y, closeTo(0.0, 1e-5),
-            reason: 'Right vector must have zero vertical component (0° roll)');
+        expect(
+          rig.headTransform.right.y,
+          closeTo(0.0, 1e-5),
+          reason: 'Right vector must have zero vertical component (0° roll)',
+        );
 
         // Up vector must always have a positive Y component (never inverts or tilts upside down)
-        expect(rig.headTransform.up.y, greaterThan(0.1),
-            reason: 'Up vector must always point upward in world space');
+        expect(
+          rig.headTransform.up.y,
+          greaterThan(0.1),
+          reason: 'Up vector must always point upward in world space',
+        );
 
         // Pitch must be strictly clamped within [-1.45, 1.45] rad (prevent zenith/nadir flip)
         expect(rig.pitch, inInclusiveRange(-1.45, 1.45));

@@ -43,6 +43,9 @@ enum VrInputType {
 
   /// Grip / Grab / Telekinesis action on gamepad or remote.
   grip,
+
+  /// Recalibrate the current viewer heading without moving its world position.
+  recenter,
 }
 
 /// Hardware or software source that originated the input event.
@@ -87,12 +90,20 @@ class VrInputEvent {
   String? _targetId;
   Map<String, dynamic>? _data;
   bool _active;
+  bool _handled = false;
   int _timestampMicrosecondsSinceEpoch;
 
   VrInputType get type => _type;
   VrInputSource get source => _source;
   String? get targetId => _targetId;
   Map<String, dynamic>? get data => _data;
+
+  /// Whether an earlier synchronous listener consumed this action.
+  /// The legacy payload flag remains supported during migration.
+  bool get handled => _handled || _data?['handled'] == true;
+
+  /// Prevents later action listeners from executing the same action again.
+  void consume() => _handled = true;
 
   /// Whether the source is actively manipulated.
   ///
@@ -143,6 +154,7 @@ class VrInputEvent {
     _targetId = targetId;
     _data = data;
     _active = active;
+    _handled = false;
     _timestampMicrosecondsSinceEpoch = timestampMicrosecondsSinceEpoch;
   }
 
@@ -151,6 +163,7 @@ class VrInputEvent {
     _targetId = null;
     _data = null;
     _active = false;
+    _handled = false;
     _timestampMicrosecondsSinceEpoch = 0;
   }
 
