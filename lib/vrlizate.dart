@@ -94,6 +94,7 @@ export 'scene/primitives/cube_geometry.dart';
 export 'scene/primitives/cylinder_geometry.dart';
 export 'scene/primitives/plane_geometry.dart';
 export 'scene/primitives/sphere_geometry.dart';
+export 'scene/primitives/shared_primitives.dart';
 
 // ============ Animation ============
 export 'animation/animation_clip.dart';

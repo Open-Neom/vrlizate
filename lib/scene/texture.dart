@@ -14,11 +14,18 @@ class VRTexture {
   TextureWrap wrapT;
   TextureFilter filter;
 
+  /// How many times the image repeats across the mesh's U and V range
+  /// (1 = once). A 20 m floor plane with a 2 m tile uses `repeatU = 10`.
+  double repeatU;
+  double repeatV;
+
   VRTexture({
     this.name = 'texture',
     this.wrapS = TextureWrap.repeat,
     this.wrapT = TextureWrap.repeat,
     this.filter = TextureFilter.linear,
+    this.repeatU = 1.0,
+    this.repeatV = 1.0,
   });
 
   bool get isLoaded => _loaded;

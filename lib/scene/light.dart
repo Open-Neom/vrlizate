@@ -12,6 +12,16 @@ class Light extends Node {
   Color color;
   double intensity;
 
+  /// Optional lower-hemisphere color for ambient lights.
+  ///
+  /// When set, the ambient term becomes a two-color hemisphere: surfaces
+  /// facing up receive [color], surfaces facing down receive [groundColor],
+  /// and the two blend linearly with the world-space normal's Y component.
+  /// This models sky light plus ground bounce (a fill light from below)
+  /// without any extra light passes. Null keeps a flat, direction-independent
+  /// ambient. Ignored for non-ambient light types.
+  Color? groundColor;
+
   /// Direction for directional/spot lights.
   Vector3 direction;
 
@@ -26,6 +36,7 @@ class Light extends Node {
     this.type = LightType.directional,
     this.color = const Color(0xFFFFFFFF),
     this.intensity = 1.0,
+    this.groundColor,
     Vector3? direction,
     this.range = 0,
     this.spotAngle = 0.5,
@@ -33,17 +44,27 @@ class Light extends Node {
          ..normalize();
 
   /// Creates a default ambient light.
+  ///
+  /// Pass [groundColor] for hemisphere ambient (sky above, bounce below); see
+  /// [Light.groundColor]. Renderers that only support a flat ambient use the
+  /// average of the two colors.
   factory Light.ambient({
     Color color = const Color(0xFF404040),
+    Color? groundColor,
     double intensity = 0.3,
   }) {
     return Light(
       name: 'ambient',
       type: LightType.ambient,
       color: color,
+      groundColor: groundColor,
       intensity: intensity,
     );
   }
+
+  /// Relative luminance of [c] in 0..1 (sRGB-encoded, Rec. 709 weights).
+  static double _luminance(Color c) =>
+      0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
 
   /// Creates a default directional light (sun-like).
   factory Light.directional({
@@ -83,7 +104,14 @@ class Light extends Node {
   double calculateIntensity(Vector3 surfacePoint, Vector3 surfaceNormal) {
     switch (type) {
       case LightType.ambient:
-        return intensity;
+        final ground = groundColor;
+        if (ground == null) return intensity;
+        // Hemisphere blend on the scalar path: scale by the ground/sky
+        // luminance ratio for downward normals, full intensity upward.
+        final skyLum = _luminance(color);
+        final groundRatio = skyLum > 1e-6 ? _luminance(ground) / skyLum : 1.0;
+        final up = (surfaceNormal.y.clamp(-1.0, 1.0) + 1.0) * 0.5;
+        return intensity * (groundRatio + (1.0 - groundRatio) * up);
 
       case LightType.directional:
         final nDotL = surfaceNormal.dot(-direction);

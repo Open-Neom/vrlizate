@@ -257,4 +257,65 @@ void main() {
       expect(rig.headTransform.right.y, closeTo(0.0, 1e-5));
     });
   });
+
+  group('CameraRig off-axis stereo convergence', () {
+    // Projects a world point through one eye's view-projection and returns
+    // its normalized device x (−1..1).
+    double ndcX(Matrix4 viewProjection, Vector3 world) {
+      final clip = viewProjection * Vector4(world.x, world.y, world.z, 1.0);
+      return clip.x / clip.w;
+    }
+
+    test('a point at the convergence distance has zero disparity', () {
+      final rig = CameraRig(ipd: 0.064)
+        ..position = Vector3(0.4, 1.6, -2.0)
+        ..convergenceDistance = 1.8;
+      for (final yaw in [0.0, 0.9, -2.3]) {
+        rig.setOrientation(yaw, 0.0);
+        // The eyes sit 8 cm ahead of the head position (neck model); build
+        // the target from the actual eye midpoint so the test is exact.
+        final leftEye = Matrix4.inverted(rig.leftViewMatrix).getTranslation();
+        final rightEye = Matrix4.inverted(rig.rightViewMatrix).getTranslation();
+        final center = (leftEye + rightEye) * 0.5;
+        final target = center + rig.headTransform.forward * 1.8;
+        final left = ndcX(rig.leftViewProjection(16 / 9), target);
+        final right = ndcX(rig.rightViewProjection(16 / 9), target);
+        expect(left, closeTo(0.0, 1e-6), reason: 'yaw $yaw left eye');
+        expect(right, closeTo(0.0, 1e-6), reason: 'yaw $yaw right eye');
+      }
+    });
+
+    test('nearer points show crossed disparity, farther points uncrossed', () {
+      final rig = CameraRig(ipd: 0.064)..convergenceDistance = 1.8;
+      final leftEye = Matrix4.inverted(rig.leftViewMatrix).getTranslation();
+      final rightEye = Matrix4.inverted(rig.rightViewMatrix).getTranslation();
+      final center = (leftEye + rightEye) * 0.5;
+      final near = center + Vector3(0, 0, -0.9);
+      final far = center + Vector3(0, 0, -8.0);
+      // Crossed (in front of the screen plane): the left eye sees the point
+      // to the right of center and the right eye to the left.
+      expect(ndcX(rig.leftViewProjection(1.0), near), greaterThan(0));
+      expect(ndcX(rig.rightViewProjection(1.0), near), lessThan(0));
+      // Uncrossed (behind the screen plane): the opposite.
+      expect(ndcX(rig.leftViewProjection(1.0), far), lessThan(0));
+      expect(ndcX(rig.rightViewProjection(1.0), far), greaterThan(0));
+    });
+
+    test('disabling convergence yields symmetric frustums', () {
+      for (final disabled in [null, 0.0, -1.0, double.infinity, double.nan]) {
+        final rig = CameraRig(ipd: 0.064)..convergenceDistance = disabled;
+        final left = rig.leftProjectionMatrix(1.0);
+        final right = rig.rightProjectionMatrix(1.0);
+        final mono = rig.projectionMatrix(1.0);
+        for (var i = 0; i < 16; i++) {
+          expect(left.storage[i], closeTo(mono.storage[i], 1e-9));
+          expect(right.storage[i], closeTo(mono.storage[i], 1e-9));
+        }
+      }
+    });
+
+    test('convergence defaults to the shared comfort distance', () {
+      expect(CameraRig().convergenceDistance, CameraRig.comfortDistanceDefault);
+    });
+  });
 }

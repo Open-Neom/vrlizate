@@ -38,6 +38,13 @@ class CameraRig implements RotationTarget {
   /// Maximum recommended distance for readable spatial UI (3.0m).
   static const double comfortDistanceMax = 3.0;
 
+  /// Zero-parallax distance in meters for [leftProjectionMatrix] and
+  /// [rightProjectionMatrix]. Both eye cameras stay parallel; the frustum is
+  /// shifted so a point straight ahead at this depth projects to the same
+  /// horizontal image position in both eyes. Null, non-finite or non-positive
+  /// values disable the shift (symmetric frustums, convergence at infinity).
+  double? convergenceDistance;
+
   double _ipd;
 
   /// Inter-pupillary distance in meters (clamped between 50mm and 80mm).
@@ -61,6 +68,7 @@ class CameraRig implements RotationTarget {
     this.near = 0.01,
     this.far = 1000,
     double ipd = defaultIpd,
+    this.convergenceDistance = comfortDistanceDefault,
   }) : _ipd = _normalizeIpd(ipd),
        headTransform = headTransform ?? Transform3D() {
     _extractYawPitchFromTransform();
@@ -156,10 +164,20 @@ class CameraRig implements RotationTarget {
   }
 
   Matrix4 _offAxisProjection(double aspect, double eyeOffset) {
-    // Off-axis frustum shift for proper stereoscopic convergence
     final top = near * tan(fovY / 2);
     final bottom = -top;
-    final shift = eyeOffset * near / 1.0; // convergence at 1 meter
+    // Asymmetric-frustum (parallel-axis) stereo. An eye displaced by
+    // `eyeOffset` along +X sees the shared convergence rectangle displaced by
+    // `-eyeOffset`, so its frustum must shift toward the *opposite* side:
+    // shift = -eyeOffset * near / D. A positive shift for the left eye moves
+    // its image center inward; toe-in cameras are never used, so there is no
+    // vertical disparity. With the shift disabled both frustums are symmetric
+    // and converge at infinity.
+    final distance = convergenceDistance;
+    final shift =
+        distance != null && distance.isFinite && distance > 0
+        ? -eyeOffset * near / distance
+        : 0.0;
     final left = -aspect * top + shift;
     final right = aspect * top + shift;
 
