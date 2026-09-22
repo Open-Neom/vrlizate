@@ -1,6 +1,10 @@
 # Changelog
 
-## 1.12.0 — Unreleased / Sin publicar
+## 1.12.0 - 2026-09-22
+
+- Add opt-in speed-adaptive quaternion smoothing to `VrRemotePosePredictor`,
+  before prediction, with resets on discontinuities, gaps and recenter. Default
+  behavior is unchanged; this does not filter visor tracking or touch input.
 
 - Add allocation-free per-source `setDwellSuppressed` holds for connected idle
   controllers. Keep hover, releases and explicit buttons; disconnect resumes
