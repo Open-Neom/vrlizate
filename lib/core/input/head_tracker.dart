@@ -4,6 +4,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vector_math/vector_math.dart';
 
 import 'background_isolate.dart';
+import 'head_tracking_bias.dart';
 import 'head_tracking_fusion.dart';
 import 'vr_sensor_capabilities.dart';
 
@@ -54,9 +55,14 @@ class HeadTracker {
   double _offsetX = 0;
   double _offsetY = 0;
   bool _calibrating = false;
-  int _calibrationSamples = 0;
-  double _calibrationSumX = 0;
-  double _calibrationSumY = 0;
+  final _biasEstimator = HeadTrackingBiasEstimator();
+
+  /// Diagnostics in radians/second; reading them never changes tracking.
+  double get gyroBiasX => _offsetX;
+  double get gyroBiasY => _offsetY;
+  bool get isCalibrating => _calibrating;
+  String get calibrationStatus => _running ? _biasEstimator.status : 'stopped';
+  int get calibrationSamples => _biasEstimator.sampleCount;
 
   final HeadTrackingFusion _fusion = HeadTrackingFusion();
   AccelerometerEvent? _lastGravityEvent;
@@ -69,7 +75,6 @@ class HeadTracker {
   bool _running = false;
   int _session = 0;
   int _workerRevision = 0;
-  Timer? _calibrationTimer;
   Timer? _healthTimer;
 
   BackgroundIsolate? _fusionIsolate;
@@ -113,14 +118,13 @@ class HeadTracker {
     );
   }
 
-  /// Starts tracking. Keep the device still during the one-second calibration.
+  /// Starts tracking immediately and requests one valid stationary bias window.
+  /// Movement delays calibration, never tracking; a prior safe bias is retained.
   void start() {
     stop();
     if (!canStart) return;
     _running = true;
     final session = _session;
-    _offsetX = 0;
-    _offsetY = 0;
     _fusion.reset(clearGravity: true);
     _lastGravityEvent = null;
     _silentIntervals = 0;
@@ -153,6 +157,12 @@ class HeadTracker {
     _accelSubscription = accelerationEvents?.listen(
       (event) {
         if (!_running || session != _session) return;
+        _biasEstimator.addGravity(
+          event.x,
+          event.y,
+          event.z,
+          event.timestamp.microsecondsSinceEpoch,
+        );
         if (!_fusion.updateGravity(event.x, event.y, event.z)) return;
         _lastGravityEvent = event;
         _gravitySilentIntervals = 0;
@@ -189,13 +199,21 @@ class HeadTracker {
         _silentIntervals = 0;
         if (!isGyroscopeActive) _resetFusion();
         isGyroscopeActive = true;
-        if (_calibrating) {
-          _calibrationSumX += event.x;
-          _calibrationSumY += event.y;
-          _calibrationSamples++;
-          return;
-        }
         final timestampUs = event.timestamp.microsecondsSinceEpoch;
+        if (_calibrating &&
+            _biasEstimator.addGyroscope(
+              event.x,
+              event.y,
+              event.z,
+              timestampUs,
+            )) {
+          _offsetX = _biasEstimator.biasX;
+          _offsetY = _biasEstimator.biasY;
+          _calibrating = false;
+          // Discard predicted velocity from the old bias without moving gaze.
+          _resetFusion();
+          _sendConfiguration(force: true);
+        }
         if (_isolateSendPort != null) {
           _sendConfiguration();
           _isolateSendPort.send([
@@ -260,9 +278,7 @@ class HeadTracker {
     _workerSubscription = worker.messages.listen((message) {
       if (!_running || session != _session) return;
       if (message is List) {
-        if (_calibrating ||
-            !isGyroscopeActive ||
-            message[0] != _workerRevision) {
+        if (!isGyroscopeActive || message[0] != _workerRevision) {
           return;
         }
         _applyFusion(
@@ -312,37 +328,34 @@ class HeadTracker {
 
   void _loseGravity() {
     _lastGravityEvent = null;
+    _biasEstimator.clearGravity();
+    // Preserve accepted offsets. A pending calibration still needs fresh
+    // gravity, but loss of that stream does not initiate another calibration.
     _fusion.clearGravity();
     _workerRevision++;
     _isolateSendPort?.send([4, _workerRevision]);
   }
 
-  /// Averages gyro bias over one second while the device is stationary.
-  /// Slow motion is not automatically treated as bias during normal tracking.
+  /// Requests one small, stable residual-bias estimate from acquisition-time
+  /// samples. Unsafe/moving windows are rejected; current tracking continues.
+  /// No bias learning runs after acceptance until another explicit request.
   void calibrate() {
-    _calibrationTimer?.cancel();
     _calibrating = true;
-    _calibrationSamples = 0;
-    _calibrationSumX = 0;
-    _calibrationSumY = 0;
-    _resetFusion();
-    final session = _session;
-    _calibrationTimer = Timer(const Duration(seconds: 1), () {
-      if (!_running || session != _session) return;
-      if (_calibrationSamples > 0) {
-        _offsetX = _calibrationSumX / _calibrationSamples;
-        _offsetY = _calibrationSumY / _calibrationSamples;
-      }
+    _biasEstimator.request();
+    if (!_offsetX.isFinite ||
+        !_offsetY.isFinite ||
+        _offsetX.abs() > HeadTrackingBiasEstimator.maxBias ||
+        _offsetY.abs() > HeadTrackingBiasEstimator.maxBias) {
+      _offsetX = _offsetY = 0;
       _resetFusion();
-      _configureFusion();
       _sendConfiguration(force: true);
-      _calibrating = false;
-    });
+    }
   }
 
   /// Recenters yaw without inventing pitch when no valid gravity sample exists.
   void recenter() {
     _resetFusion();
+    calibrate();
     target.recenter();
     final gravity = _fusion.gravityPitch;
     if (gravity != null) {
@@ -365,11 +378,10 @@ class HeadTracker {
   void stop() {
     _running = false;
     _session++;
-    _calibrationTimer?.cancel();
-    _calibrationTimer = null;
     _healthTimer?.cancel();
     _healthTimer = null;
     _calibrating = false;
+    _biasEstimator.request(clearGravity: true);
     isGyroscopeActive = false;
     _subscription?.cancel();
     _subscription = null;

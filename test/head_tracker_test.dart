@@ -95,42 +95,170 @@ void main() {
       fakeAsync((async) {
         tracker.start();
         tracker.calibrate();
-
-        // Feed calibration samples
-        final now = DateTime.now();
-        gyroController.add(GyroscopeEvent(0.1, -0.2, 0, now));
-        gyroController.add(GyroscopeEvent(0.3, -0.4, 0, now));
-
-        // Elapse 1 second to finish calibration
-        async.elapse(const Duration(seconds: 1));
-
-        // Check that offsets are computed correctly
-        // After calibration, send normal event
-        accelController.add(AccelerometerEvent(0, 0, 9.8, now));
-        gyroController.add(GyroscopeEvent(0, 0, 0, now)); // Init
-        async.flushMicrotasks();
-
-        target.rotateCalls.clear();
-
-        // Since the calibration average is X = 0.2, Y = -0.3,
-        // sending a gyro event with exactly these values should produce 0 rotation!
-        gyroController.add(
-          GyroscopeEvent(
-            0.2,
-            -0.3,
-            0,
-            now.add(const Duration(milliseconds: 100)),
-          ),
-        );
-        async.flushMicrotasks();
-
-        // If calibration works, the rotation should be exactly zero.
-        if (target.rotateCalls.isNotEmpty) {
-          expect(target.rotateCalls.first[0], closeTo(0, 1e-4));
-          expect(target.rotateCalls.first[1], closeTo(0, 1e-4));
+        final now = DateTime(2026);
+        for (var i = 0; i <= 80; i++) {
+          final at = now.add(Duration(milliseconds: i * 10));
+          accelController.add(AccelerometerEvent(9.81, 0, 0, at));
+          gyroController.add(GyroscopeEvent(.0006, -.0005, 0, at));
+          async.flushMicrotasks();
         }
+        expect(tracker.isCalibrating, isFalse);
+        expect(tracker.calibrationStatus, 'accepted');
+        expect(tracker.gyroBiasX, closeTo(.0006, 1e-12));
+        expect(tracker.gyroBiasY, closeTo(-.0005, 1e-12));
+        target.rotateCalls.clear();
+        for (var i = 81; i <= 180; i++) {
+          final at = now.add(Duration(milliseconds: i * 10));
+          accelController.add(AccelerometerEvent(9.81, 0, 0, at));
+          gyroController.add(GyroscopeEvent(.0006, -.0005, 0, at));
+          async.flushMicrotasks();
+        }
+        expect(target.rotateCalls, isEmpty);
       });
     });
+
+    test('S25 moved startup cannot create 26.7 degrees per second drift', () {
+      fakeAsync((async) {
+        tracker.predictionMs = 0;
+        tracker.jitterDamping = false;
+        tracker.start();
+        final now = DateTime(2026);
+        void sample(int us, double x, double y) {
+          final at = now.add(Duration(microseconds: us));
+          accelController.add(AccelerometerEvent(9.81, 0, 0, at));
+          gyroController.add(GyroscopeEvent(x, y, 0, at));
+          async.flushMicrotasks();
+        }
+
+        for (var i = 0; i < 451; i++) {
+          sample(i * 2200, -.46654729783161236, .30278677501338985);
+        }
+        expect(tracker.gyroBiasX, 0);
+        expect(tracker.gyroBiasY, 0);
+        expect(tracker.isCalibrating, isTrue);
+        target.rotateCalls.clear();
+        // The real phone stopped; there must be no artificial opposite turn.
+        for (var i = 0; i <= 3000; i++) {
+          sample(1000000 + i * 10000, 0, 0);
+        }
+        expect(target.rotateCalls, isEmpty);
+        expect(tracker.calibrationStatus, 'accepted');
+        tracker.recenter();
+        for (var i = 0; i <= 100; i++) {
+          sample(32000000 + i * 10000, 0, 0);
+        }
+        expect(target.rotateCalls, isEmpty);
+        expect(tracker.gyroBiasX, 0);
+      });
+    });
+
+    for (final rate in [.003, .004]) {
+      test(
+        'startup turn at $rate rad/s stops without learned reverse drift',
+        () {
+          fakeAsync((async) {
+            tracker.predictionMs = 0;
+            tracker.jitterDamping = false;
+            tracker.start();
+            final now = DateTime(2026);
+            void sample(int i, double x) {
+              final at = now.add(Duration(milliseconds: i * 10));
+              accelController.add(AccelerometerEvent(9.81, 0, 0, at));
+              gyroController.add(GyroscopeEvent(x, 0, 0, at));
+              async.flushMicrotasks();
+            }
+
+            for (var i = 0; i <= 1000; i++) {
+              sample(i, rate);
+            }
+            expect(tracker.gyroBiasX, 0);
+            expect(
+              target.rotateCalls.fold<double>(0, (sum, v) => sum + v[0]),
+              closeTo(rate * 10, 1e-10),
+            );
+            target.rotateCalls.clear();
+            for (var i = 1001; i <= 4000; i++) {
+              sample(i, 0);
+            }
+            expect(target.rotateCalls, isEmpty);
+            expect(tracker.gyroBiasX.abs(), lessThanOrEqualTo(.001));
+          });
+        },
+      );
+    }
+
+    test(
+      'pending start and recenter calibrations preserve slow intentional yaw',
+      () {
+        fakeAsync((async) {
+          tracker.predictionMs = 0;
+          tracker.jitterDamping = false;
+          tracker.start();
+          final now = DateTime(2026);
+          for (var i = 0; i <= 1000; i++) {
+            final at = now.add(Duration(milliseconds: i * 10));
+            accelController.add(AccelerometerEvent(9.81, 0, 0, at));
+            gyroController.add(GyroscopeEvent(.01, 0, 0, at));
+            async.flushMicrotasks();
+          }
+          expect(
+            target.rotateCalls.fold<double>(0, (sum, v) => sum + v[0]),
+            closeTo(.1, 1e-10),
+          );
+          expect(tracker.gyroBiasX, 0);
+          expect(tracker.isCalibrating, isTrue);
+          tracker.recenter();
+          target.rotateCalls.clear();
+          for (var i = 1001; i <= 2001; i++) {
+            final at = now.add(Duration(milliseconds: i * 10));
+            accelController.add(AccelerometerEvent(9.81, 0, 0, at));
+            gyroController.add(GyroscopeEvent(.01, 0, 0, at));
+            async.flushMicrotasks();
+          }
+          expect(
+            target.rotateCalls.fold<double>(0, (sum, v) => sum + v[0]),
+            closeTo(.1, 1e-10),
+          );
+          expect(tracker.gyroBiasX, 0);
+        });
+      },
+    );
+
+    test(
+      'restart and recenter preserve valid bias until a new window succeeds',
+      () {
+        fakeAsync((async) {
+          tracker.start();
+          final now = DateTime(2026);
+          void sample(int ms, double rate) {
+            final at = now.add(Duration(milliseconds: ms));
+            accelController.add(AccelerometerEvent(9.81, 0, 0, at));
+            gyroController.add(GyroscopeEvent(rate, 0, 0, at));
+            async.flushMicrotasks();
+          }
+
+          for (var i = 0; i <= 80; i++) {
+            sample(i * 10, .0006);
+          }
+          expect(tracker.gyroBiasX, closeTo(.0006, 1e-12));
+          tracker.stop();
+          tracker.start();
+          expect(tracker.gyroBiasX, closeTo(.0006, 1e-12));
+          for (var i = 0; i <= 80; i++) {
+            sample(1000 + i * 10, .2);
+          }
+          expect(tracker.isCalibrating, isTrue);
+          expect(tracker.gyroBiasX, closeTo(.0006, 1e-12));
+          tracker.recenter();
+          expect(tracker.gyroBiasX, closeTo(.0006, 1e-12));
+          for (var i = 0; i <= 80; i++) {
+            sample(2000 + i * 10, .0002);
+          }
+          expect(tracker.isCalibrating, isFalse);
+          expect(tracker.gyroBiasX, closeTo(.0002, 1e-12));
+        });
+      },
+    );
 
     test('stop cancels all subscriptions and inactivates tracker', () {
       fakeAsync((async) {
@@ -225,7 +353,7 @@ void main() {
     });
 
     test(
-      'stop cancels timers; restarted calibration belongs to new session',
+      'stop cancels timers; pending calibration never freezes a restarted stream',
       () {
         fakeAsync((async) {
           tracker.start();
@@ -248,9 +376,12 @@ void main() {
           async.flushMicrotasks();
           expect(
             target.rotateCalls,
-            isEmpty,
-            reason: 'Old calibration must not end the new calibration early',
+            isNotEmpty,
+            reason: 'Tracking continues while movement prevents calibration',
           );
+          expect(tracker.gyroBiasX, 0);
+          expect(tracker.isCalibrating, isTrue);
+          target.rotateCalls.clear();
           tracker.stop();
           async.elapse(const Duration(seconds: 2));
           expect(tracker.isGyroscopeActive, isFalse);
