@@ -217,8 +217,9 @@ class GazePointer {
   void _applyAdaptation(String nodeId) {
     if (!adaptiveDwell) return;
     if (_lastSelectedId == nodeId) {
+      final minDwell = math.min(minDwellDuration, dwellDuration);
       _effectiveDwell = (_effectiveDwell * dwellAcceleration).clamp(
-        minDwellDuration,
+        minDwell,
         dwellDuration,
       );
     } else {

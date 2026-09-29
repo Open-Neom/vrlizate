@@ -170,5 +170,19 @@ void main() {
       pointer.resetAdaptation();
       expect(pointer.effectiveDwellDuration, 1.0);
     });
+
+    test('dwellDuration shorter than default minDwellDuration does not throw clamp exception', () {
+      final pointer = GazePointer(
+        cameraRig: CameraRig(),
+        dwellDuration: 0.5, // Less than default minDwellDuration (0.6)
+      );
+
+      expect(() {
+        pointer.update(0.01, 'a');
+        pointer.update(0.6, 'a'); // Triggers dwell select and _applyAdaptation
+        pointer.update(0.01, 'a');
+        pointer.update(0.6, 'a');
+      }, returnsNormally);
+    });
   });
 }
