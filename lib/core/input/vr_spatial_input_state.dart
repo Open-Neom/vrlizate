@@ -16,6 +16,13 @@ class VrSpatialInputState {
   final double remoteTimeoutSeconds;
   double moveX = 0;
   double moveY = 0;
+
+  /// Physical rim intent, before the phone's movement acceleration curve.
+  /// Null supports older controllers that only transmit conditioned axes.
+  bool? moveAtEdge;
+
+  /// Digital navigation (for example WASD) must not imply analog rim intent.
+  bool edgeTurnEnabled = true;
   double lookX = 0;
   double lookY = 0;
   bool _moveRemote = false;
@@ -53,6 +60,10 @@ class VrSpatialInputState {
       if (!rightOnly && (event.active || _moveSource == event.source)) {
         moveX = event.active ? _axis(data?['stickX'] ?? data?['x']) : 0;
         moveY = event.active ? _axis(data?['stickY'] ?? data?['y']) : 0;
+        moveAtEdge = event.active && data?['moveAtEdge'] is bool
+            ? data!['moveAtEdge'] as bool
+            : null;
+        edgeTurnEnabled = event.active && data?['edgeTurnEnabled'] != false;
         _moveAge = 0;
         _moveRemote = remote;
         _moveSource = event.active ? event.source : null;
@@ -127,6 +138,7 @@ class VrSpatialInputState {
     _pointerAge += dt;
     if (_moveRemote && _moveAge >= remoteTimeoutSeconds) {
       moveX = moveY = 0;
+      moveAtEdge = null;
     }
     if (_lookRemote && _lookAge >= remoteTimeoutSeconds) {
       lookX = lookY = 0;
@@ -143,6 +155,8 @@ class VrSpatialInputState {
     required Vector3 screenRight,
     required double dt,
     double speed = 3.0,
+    double? movementX,
+    double? movementY,
   }) {
     out.setZero();
     if (!dt.isFinite || dt <= 0 || !speed.isFinite || speed < 0) return;
@@ -153,15 +167,16 @@ class VrSpatialInputState {
       screenRight.x * screenRight.x + screenRight.z * screenRight.z,
     );
     if (forwardLength <= 1e-9 || rightLength <= 1e-9) return;
-    final magnitude = math.max(1.0, math.sqrt(moveX * moveX + moveY * moveY));
+    final x = movementX ?? moveX;
+    final y = movementY ?? moveY;
+    if (!x.isFinite || !y.isFinite) return;
+    final magnitude = math.max(1.0, math.sqrt(x * x + y * y));
     final distance = speed * dt / magnitude;
     out.setValues(
-      (screenRight.x / rightLength * moveX +
-              forward.x / forwardLength * moveY) *
+      (screenRight.x / rightLength * x + forward.x / forwardLength * y) *
           distance,
       0,
-      (screenRight.z / rightLength * moveX +
-              forward.z / forwardLength * moveY) *
+      (screenRight.z / rightLength * x + forward.z / forwardLength * y) *
           distance,
     );
   }
@@ -198,6 +213,8 @@ class VrSpatialInputState {
 
   void reset() {
     moveX = moveY = lookX = lookY = 0;
+    moveAtEdge = null;
+    edgeTurnEnabled = true;
     _moveAge = _lookAge = _pointerAge = 0;
     _moveRemote = _lookRemote = _pointerRemote = false;
     _pointerActive = false;

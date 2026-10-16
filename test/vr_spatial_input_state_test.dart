@@ -60,6 +60,43 @@ void main() {
       );
 
   test(
+    'rim intent copies scalars, expires and does not leak across sources',
+    () {
+      final payload = <String, dynamic>{'y': -.5, 'moveAtEdge': true};
+      final state = VrSpatialInputState()..handleEvent(navigation(payload));
+      payload['moveAtEdge'] = false;
+      expect(state.moveAtEdge, isTrue);
+      state.update(.51);
+      expect(state.moveAtEdge, isNull);
+      state.handleEvent(navigation({'y': -1, 'moveAtEdge': false}));
+      expect(state.moveAtEdge, isFalse);
+      state.handleEvent(navigation({'y': -1}));
+      expect(state.moveAtEdge, isNull);
+      state.handleEvent(navigation({'y': -1, 'moveAtEdge': true}));
+      state.handleEvent(navigation({}, active: false));
+      expect(state.moveAtEdge, isNull);
+    },
+  );
+
+  test(
+    'digital directions opt out without disabling subsequent analog input',
+    () {
+      final arbiter = VrInputArbiter();
+      final driver = VrGamepadDriver();
+      final state = VrSpatialInputState();
+      arbiter.addListener(state.handleEvent);
+      arbiter.attachDriver(driver);
+      driver.updateStick(0, -1, edgeTurnEnabled: false);
+      expect(state.edgeTurnEnabled, isFalse);
+      driver.updateStick(1, 0, stick: VrGamepadStick.right);
+      expect(state.edgeTurnEnabled, isFalse);
+      driver.updateStick(0, -1);
+      expect(state.edgeTurnEnabled, isTrue);
+      arbiter.dispose();
+    },
+  );
+
+  test(
     '60 and 120 packet rates produce identical movement over one second',
     () {
       Vector3 simulate(int packetRate) {

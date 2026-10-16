@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.13.0 — Unreleased
+
+- Add shared `VrStickEdgeTurn`: sustained analog rim input gradually faces a
+  fixed travel heading after a 650 ms dwell, with bounded turn speed and
+  trajectory-aware rear turns. Physical rim intent is independent of movement
+  gain; right-stick look cancels until neutral. Digital adapters can opt out.
+
+- Delegate `RigidBody` and `PhysicsWorld` to the standalone `vrlizate_physics`
+  SDK module, retaining the Node adapter and legacy pivot-ground convention.
+  Add bounded fixed steps, time-scaled damping and corrected AABB separation.
+
+- Move renderer session lifecycle from retired `sint_vr` into the engine package,
+  without a SINT dependency. Preserve serialized start/pause/resume/close, route
+  visibility, background handling and explicit resource ownership.
+- Add `VrSessionHost` and `VREngineSessionAdapter`; framework integrations use
+  lifecycle hooks and a read-only `ValueListenable` status.
+- Session widgets require Flutter 3.47 or later.
+
+
 ## 1.12.0 - 2026-09-22
 
 - Add opt-in speed-adaptive quaternion smoothing to `VrRemotePosePredictor`,

@@ -1,0 +1,3 @@
+dependency_overrides:
+  vrlizate_physics:
+    path: ../vrlizate_physics

@@ -8,7 +8,7 @@
 
 VRlizate es un motor 3D/VR Open Source escrito en Dart para crear experiencias
 inmersivas accesibles desde smartphones y aplicaciones Flutter. El paquete
-`vrlizate` prepara la versión **1.12.0 (sin publicar)**; el objetivo del ecosistema abierto es
+`vrlizate` prepara la versión **1.13.0 (sin publicar)**; el objetivo del ecosistema abierto es
 ofrecer un núcleo verificable y extensible: un mismo
 formato de escenas e interacción que pueda adaptarse desde teléfonos económicos
 hasta dispositivos con seguimiento avanzado.
@@ -16,6 +16,21 @@ hasta dispositivos con seguimiento avanzado.
 > Estado: desarrollo activo. La disponibilidad de sensores y el rendimiento se
 > verifican por dispositivo; las funciones opcionales requieren integración de
 > la aplicación anfitriona.
+
+## Preparación 1.13.0 / Unreleased
+
+El ciclo de vida de experiencias vive en este paquete, sin SINT ni `neom_vr`:
+`VrSessionHost` pausa al ocultarse una ruta o pasar al fondo, reanuda al volver
+y cierra la sesión al desmontarse. `VrSessionController` serializa operaciones y
+expone `ValueListenable<VrSessionStatus>`; su creación no inicia el renderer.
+El host es dueño de su controlador. Al crear uno directamente, llamar a
+`closeSession()` para esperar la limpieza y a `dispose()` para liberar listeners.
+
+`VrWidgetSessionAdapter` sirve para widgets que respetan `TickerMode`. Bucles
+nativos, audio y sensores necesitan `VrCallbackSessionAdapter` con callbacks
+explícitos. `VREngineSessionAdapter` toma el motor prestado por defecto; solo
+`ownsEngine: true` transfiere su destrucción. Estas APIs requieren Flutter 3.47+.
+La integración con el contenedor y los controladores SINT pertenece a `neom_vr`.
 
 ## Preparación 1.12.0 / Unreleased
 

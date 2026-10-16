@@ -160,10 +160,12 @@ class VrGamepadDriver implements VrInputDriver {
   ///
   /// Values inside the radial deadzone are emitted as `(0, 0)` with
   /// `active: false`, allowing locomotion consumers to stop immediately.
+  /// Set [edgeTurnEnabled] to false for digital keyboard/D-pad fallbacks.
   bool updateStick(
     double x,
     double y, {
     VrGamepadStick stick = VrGamepadStick.left,
+    bool edgeTurnEnabled = true,
   }) {
     final sink = _sink;
     if (sink == null) return false;
@@ -181,6 +183,7 @@ class VrGamepadDriver implements VrInputDriver {
     _stickPayload[stickKey] = stick;
     _stickPayload[xKey] = normalizedX;
     _stickPayload[yKey] = normalizedY;
+    _stickPayload['edgeTurnEnabled'] = edgeTurnEnabled;
     return sink.emit(
       type: VrInputType.navigate,
       data: _stickPayload,

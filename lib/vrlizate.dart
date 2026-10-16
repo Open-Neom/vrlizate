@@ -46,6 +46,7 @@ export 'core/input/vr_input_arbiter.dart';
 export 'core/input/vr_input_event_bus.dart';
 export 'core/input/vr_sensor_capabilities.dart';
 export 'core/input/vr_spatial_input_state.dart';
+export 'core/input/vr_stick_edge_turn.dart';
 export 'core/input/wifi_rtt.dart';
 export 'core/input/wifi_sensing.dart';
 
@@ -151,3 +152,8 @@ export 'components/vr_scene.dart';
 // ============ Utils ============
 export 'utils/frustum.dart';
 export 'utils/vr_math.dart';
+
+// ============ Renderer Session Lifecycle ============
+export 'session/vr_session.dart';
+export 'session/vr_session_host.dart';
+export 'session/vr_engine_session_adapter.dart';
