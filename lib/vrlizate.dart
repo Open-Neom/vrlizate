@@ -101,6 +101,7 @@ export 'scene/primitives/shared_primitives.dart';
 export 'animation/animation_clip.dart';
 export 'animation/animation_mixer.dart';
 export 'animation/keyframe.dart';
+export 'animation/procedural_curves.dart';
 export 'animation/skeleton.dart';
 export 'animation/skin_deformer.dart';
 

@@ -2,6 +2,10 @@
 
 ## 1.13.0 — Unreleased
 
+- Add `VrCurves`, `VrSeededRandom`, `VrMonotoneSpline` (Fritsch–Carlson monotone
+  cubic spline without overshoot), `VrCurveTrack`, `VrVector3Track`, and
+  `VrBeatTimeline` in `animation/procedural_curves.dart`.
+
 - Add shared `VrStickEdgeTurn`: sustained analog rim input gradually faces a
   fixed travel heading after a 650 ms dwell, with bounded turn speed and
   trajectory-aware rear turns. Physical rim intent is independent of movement
