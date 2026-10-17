@@ -151,6 +151,7 @@ export 'components/vr_element.dart';
 export 'components/vr_scene.dart';
 
 // ============ Utils ============
+export 'utils/constants/vr_gaze_constants.dart';
 export 'utils/frustum.dart';
 export 'utils/vr_math.dart';
 

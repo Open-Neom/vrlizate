@@ -99,10 +99,11 @@ class VrGamepadDriver implements VrInputDriver {
 
   /// Forwards a digital button edge.
   ///
-  /// A and B are discrete actions and emit only on press. X and Y emit both
-  /// edges so consumers can observe their complete trigger state. Digital L2
-  /// and R2 values are forwarded through [updateTrigger]. Returns whether an
-  /// event reached the arbiter; returns `false` while detached.
+  /// A is a discrete action and emits only on press. B, X, and Y emit both
+  /// press and release edges so consumers can observe hold state (e.g. holding
+  /// B while gazing to drag). Digital L2 and R2 values are forwarded through
+  /// [updateTrigger]. Returns whether an event reached the arbiter; returns
+  /// `false` while detached.
   bool updateButton(VrGamepadButton button, bool pressed) {
     if (button == VrGamepadButton.l2 || button == VrGamepadButton.r2) {
       return updateTrigger(button, pressed ? 1 : 0);
@@ -120,8 +121,7 @@ class VrGamepadDriver implements VrInputDriver {
       ),
     };
 
-    if (!pressed &&
-        (button == VrGamepadButton.a || button == VrGamepadButton.b)) {
+    if (!pressed && button == VrGamepadButton.a) {
       return false;
     }
 

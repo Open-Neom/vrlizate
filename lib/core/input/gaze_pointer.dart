@@ -6,6 +6,7 @@ import 'package:vector_math/vector_math.dart';
 
 import '../camera/camera_rig.dart';
 import '../../interaction/raycast.dart';
+import '../../utils/constants/vr_gaze_constants.dart';
 
 /// Gaze-based pointer for VR interaction (look to select).
 /// Fires a ray from the camera center forward direction.
@@ -33,6 +34,11 @@ class GazePointer {
   /// Grace period in seconds: if the gaze briefly leaves the target for less
   /// than this, the dwell timer is preserved instead of reset.
   double gazeGracePeriod;
+
+  /// Initial stabilization delay in seconds on a target before the dwell
+  /// progress ring begins filling. Prevents accidental progress/selection
+  /// while scanning the scene.
+  double dwellActivationDelay;
 
   /// Whether to trigger subtle tactile haptic feedback on gaze enter and dwell selection.
   bool enableHaptics;
@@ -79,11 +85,12 @@ class GazePointer {
 
   GazePointer({
     required this.cameraRig,
-    this.dwellDuration = 2.0,
-    this.minDwellDuration = 0.6,
-    this.dwellAcceleration = 0.8,
+    this.dwellDuration = VrGazeConstants.defaultDwellDuration,
+    this.minDwellDuration = VrGazeConstants.defaultMinDwellDuration,
+    this.dwellAcceleration = VrGazeConstants.defaultDwellAcceleration,
     this.adaptiveDwell = true,
-    this.gazeGracePeriod = 0.15,
+    this.gazeGracePeriod = VrGazeConstants.defaultGazeGracePeriod,
+    this.dwellActivationDelay = 0.0,
     this.enableHaptics = true,
     this.onDwellSelect,
     this.onTap,
@@ -91,6 +98,12 @@ class GazePointer {
     this.onGazeExit,
     this.onDwellProgress,
   }) : _effectiveDwell = dwellDuration;
+
+  double _computeProgress(double timer) {
+    final activeTime = math.max(0.0, timer - dwellActivationDelay);
+    if (_effectiveDwell <= 0) return 1.0;
+    return (activeTime / _effectiveDwell).clamp(0.0, 1.0);
+  }
 
   /// Manually trigger a tap/click event on the currently gazed target.
   void triggerTap(RaycastHit? hit) {
@@ -176,9 +189,7 @@ class GazePointer {
       _gazeTargetId = hitNodeId;
       _gazeTimer = resumed ? _graceSavedGazeTimer : 0;
       _selected = false;
-      dwellProgress = resumed
-          ? (_gazeTimer / _effectiveDwell).clamp(0.0, 1.0)
-          : 0;
+      dwellProgress = resumed ? _computeProgress(_gazeTimer) : 0;
       _graceTargetId = null;
       _graceTimer = 0;
       if (hitNodeId != null) {
@@ -201,7 +212,7 @@ class GazePointer {
     if (!dwellEnabled) return;
 
     _gazeTimer += dt;
-    dwellProgress = (_gazeTimer / _effectiveDwell).clamp(0.0, 1.0);
+    dwellProgress = _computeProgress(_gazeTimer);
     onDwellProgress?.call(hitNodeId, dwellProgress);
 
     if (dwellProgress >= 1.0 && !_selected) {

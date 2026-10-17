@@ -174,7 +174,7 @@ void main() {
     test('dwellDuration shorter than default minDwellDuration does not throw clamp exception', () {
       final pointer = GazePointer(
         cameraRig: CameraRig(),
-        dwellDuration: 0.5, // Less than default minDwellDuration (0.6)
+        dwellDuration: 0.5, // Less than default minDwellDuration (1.6)
       );
 
       expect(() {
@@ -183,6 +183,42 @@ void main() {
         pointer.update(0.01, 'a');
         pointer.update(0.6, 'a');
       }, returnsNormally);
+    });
+
+    test('default constants use deliberate non-rushed dwell timings', () {
+      final pointer = GazePointer(cameraRig: CameraRig());
+      expect(pointer.dwellDuration, VrGazeConstants.defaultDwellDuration);
+      expect(pointer.dwellDuration, 2.6);
+      expect(pointer.minDwellDuration, VrGazeConstants.defaultMinDwellDuration);
+      expect(pointer.minDwellDuration, 1.6);
+      expect(pointer.gazeGracePeriod, VrGazeConstants.defaultGazeGracePeriod);
+    });
+
+    test('dwellActivationDelay holds progress at zero before ramping dwell', () {
+      final pointer = GazePointer(
+        cameraRig: CameraRig(),
+        dwellDuration: 2.0,
+        dwellActivationDelay: VrGazeConstants.defaultDwellActivationDelay,
+        adaptiveDwell: false,
+      );
+      String? selected;
+      pointer.onDwellSelect = (id) => selected = id;
+
+      pointer.update(0.01, 'target'); // Enter
+      pointer.update(0.30, 'target'); // Within 0.35s stabilization delay
+      expect(pointer.dwellProgress, 0.0);
+      expect(selected, isNull);
+
+      pointer.update(0.05, 'target'); // Reaches 0.35s stabilization threshold
+      expect(pointer.dwellProgress, closeTo(0.0, 1e-9));
+
+      pointer.update(1.0, 'target'); // 1.0s into the 2.0s dwell
+      expect(pointer.dwellProgress, closeTo(0.5, 1e-9));
+      expect(selected, isNull);
+
+      pointer.update(1.0, 'target'); // Completes the 2.0s dwell
+      expect(pointer.dwellProgress, 1.0);
+      expect(selected, 'target');
     });
   });
 }
