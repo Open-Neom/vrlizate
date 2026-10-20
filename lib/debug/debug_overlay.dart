@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/painting.dart' show TextPainter, TextSpan, TextStyle;
 
 import '../core/engine/vr_engine.dart';
+import '../utils/constants/vr_core_translation_constants.dart';
 
 /// Debug overlay that displays performance metrics in VR.
 class DebugOverlay {
@@ -26,22 +27,30 @@ class DebugOverlay {
     final lines = <String>[];
 
     if (showFps) {
-      lines.add('FPS: ${engine.fps.toStringAsFixed(1)}');
-      lines.add('Frame: ${engine.frameTimeMs.toStringAsFixed(1)}ms');
+      lines.add(
+        '${VrCoreTranslationConstants.debugFpsPrefix}: ${engine.fps.toStringAsFixed(1)}',
+      );
+      lines.add(
+        '${VrCoreTranslationConstants.debugFramePrefix}: ${engine.frameTimeMs.toStringAsFixed(1)}ms',
+      );
     }
 
     if (showNodeCount) {
-      lines.add('Rendered: ${engine.renderedCount}');
+      lines.add(
+        '${VrCoreTranslationConstants.debugRenderedPrefix}: ${engine.renderedCount}',
+      );
     }
 
     if (showCullingStats) {
-      lines.add('Culled: ${engine.culledCount}');
+      lines.add(
+        '${VrCoreTranslationConstants.debugCulledPrefix}: ${engine.culledCount}',
+      );
     }
 
     if (showCameraInfo) {
       final pos = engine.cameraRig.position;
       lines.add(
-        'Pos: ${pos.x.toStringAsFixed(1)}, ${pos.y.toStringAsFixed(1)}, ${pos.z.toStringAsFixed(1)}',
+        '${VrCoreTranslationConstants.debugPosPrefix}: ${pos.x.toStringAsFixed(1)}, ${pos.y.toStringAsFixed(1)}, ${pos.z.toStringAsFixed(1)}',
       );
     }
 

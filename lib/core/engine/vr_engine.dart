@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart' show CustomPainter, ChangeNotifier;
 import 'package:vector_math/vector_math.dart';
 
 import '../../scene/scene.dart';
+import '../../utils/constants/vr_core_constants.dart';
 import '../camera/camera_rig.dart';
 import '../input/desktop_input.dart';
 import '../input/head_tracker.dart';
@@ -131,11 +132,13 @@ class VREngine extends ChangeNotifier {
   /// Integrates held input once per rendered frame. Public for headless hosts.
   void updateInput(double dt) {
     spatialInput.update(dt);
-    if (!dt.isFinite || dt <= 0 || dt > 0.25) return;
+    if (!dt.isFinite || dt <= 0 || dt > VrCoreConstants.maxInputDeltaTimeSec) {
+      return;
+    }
     if (spatialInput.lookX != 0 || spatialInput.lookY != 0) {
       cameraRig.rotate(
-        spatialInput.lookX * 2.1 * dt,
-        -spatialInput.lookY * 1.5 * dt,
+        spatialInput.lookX * VrCoreConstants.defaultLookYawSpeed * dt,
+        -spatialInput.lookY * VrCoreConstants.defaultLookPitchSpeed * dt,
       );
     }
     if (spatialInput.moveX == 0 && spatialInput.moveY == 0) return;
@@ -160,7 +163,10 @@ class VREngine extends ChangeNotifier {
       _ticker = Ticker((_) => _tick())..start();
     } catch (_) {
       _ticker = null;
-      _timer = Timer.periodic(const Duration(milliseconds: 16), (_) => _tick());
+      _timer = Timer.periodic(
+        const Duration(milliseconds: VrCoreConstants.fallbackTimerPeriodMs),
+        (_) => _tick(),
+      );
     }
   }
 
@@ -206,9 +212,9 @@ class VREngine extends ChangeNotifier {
   /// Returns the driver so the widget layer can forward pointer/key events
   /// (see [DesktopInputRegion]).
   DesktopInputDriver enableDesktopInput({
-    double lookSensitivity = 0.0035,
-    double moveSpeed = 3.0,
-    double sprintMultiplier = 2.5,
+    double lookSensitivity = VrCoreConstants.defaultDesktopLookSensitivity,
+    double moveSpeed = VrCoreConstants.defaultDesktopMoveSpeed,
+    double sprintMultiplier = VrCoreConstants.defaultDesktopSprintMultiplier,
   }) {
     desktopInput = DesktopInputDriver(
       cameraRig: cameraRig,
@@ -280,17 +286,18 @@ class VREngine extends ChangeNotifier {
   /// locomotion, tracking and the active ray, so input is never applied twice.
   void step(double dt, {bool integrateInput = true}) {
     if (!dt.isFinite || dt <= 0) return;
-    dt = dt.clamp(0.0, 0.1);
+    dt = dt.clamp(0.0, VrCoreConstants.maxFrameDeltaTimeSec);
     _frameCount++;
 
     // FPS calculation (smoothed)
-    _frameTime = dt * 1000;
+    _frameTime = dt * VrCoreConstants.millisecondsPerSecond;
     _fps = _fps * 0.9 + (1.0 / dt) * 0.1;
 
     // Asynchronous Time Warp (ATW) Check:
     // If the frame time is above 18ms (frame drop), calculate rotation delta and set ATW matrices
     final currentRotation = cameraRig.rotation;
-    if (_frameTime > 18.0 && _lastCameraRotation != null) {
+    if (_frameTime > VrCoreConstants.atwFallbackThresholdMs &&
+        _lastCameraRotation != null) {
       final delta = currentRotation * _lastCameraRotation!.inverted();
       final atwMatrix = Matrix4.compose(
         Vector3.zero(),
@@ -325,9 +332,12 @@ class VREngine extends ChangeNotifier {
           progressBeforeUpdate < 1 &&
           pointer.dwellProgress >= 1) {
         hit.node.pointable?.press(hit);
-        Future.delayed(const Duration(milliseconds: 100), () {
-          hit.node.pointable?.release();
-        });
+        Future.delayed(
+          const Duration(milliseconds: VrCoreConstants.dwellReleaseDelayMs),
+          () {
+            hit.node.pointable?.release();
+          },
+        );
       }
 
       // Traversal to update Pointable hover states

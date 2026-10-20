@@ -8,6 +8,7 @@ library;
 import 'dart:isolate';
 import 'dart:math';
 
+import '../../utils/constants/vr_core_constants.dart';
 import 'head_tracking_fusion.dart';
 
 /// Generic handle to a background worker isolate.
@@ -119,7 +120,9 @@ void wifiCsiProcessingEntry(dynamic mainSendPortArg) {
 
   receivePort.listen((message) {
     if (message is Map<String, dynamic>) {
-      final List<double> amplitudes = List<double>.from(message['amplitudes']);
+      final List<double> amplitudes = List<double>.from(
+        message[VrCoreConstants.csiKeyAmplitudes],
+      );
 
       // SOTA CSI processing: Compute standard deviation of subcarriers
       // to detect multipath phase/amplitude disturbance caused by movement
@@ -154,7 +157,7 @@ void wifiCsiProcessingEntry(dynamic mainSendPortArg) {
       final double dist = 1.0 + (5.0 / (mean + 0.1)).clamp(0.0, 5.0);
 
       // Simulate a circular walking trajectory based on time
-      final double timeSecs = message['timestamp'] / 1000.0;
+      final double timeSecs = message[VrCoreConstants.csiKeyTimestamp] / 1000.0;
       final double px = sin(timeSecs * 0.5) * dist;
       final double py =
           1.0 +
@@ -166,13 +169,13 @@ void wifiCsiProcessingEntry(dynamic mainSendPortArg) {
 
       // Return processed coordinates & state back to the main thread
       mainSendPort.send({
-        'id': 'subject_alpha',
-        'px': px,
-        'py': py,
-        'pz': pz,
-        'respiration': estimatedResp,
-        'intensity': stdDev,
-        'isMoving': isMoving,
+        VrCoreConstants.csiKeyId: VrCoreConstants.defaultCsiSubjectId,
+        VrCoreConstants.csiKeyPx: px,
+        VrCoreConstants.csiKeyPy: py,
+        VrCoreConstants.csiKeyPz: pz,
+        VrCoreConstants.csiKeyRespiration: estimatedResp,
+        VrCoreConstants.csiKeyIntensity: stdDev,
+        VrCoreConstants.csiKeyIsMoving: isMoving,
       });
     }
   });

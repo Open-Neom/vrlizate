@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:vector_math/vector_math.dart';
 
+import '../../utils/constants/vr_core_constants.dart';
 import 'background_isolate.dart';
 
 /// Represents a physical entity tracked in the room through WiFi CSI (Channel State Information).
@@ -16,7 +17,7 @@ class WifiTrackedSubject {
   WifiTrackedSubject({
     required this.id,
     required this.position,
-    this.respirationRate = 16.0,
+    this.respirationRate = VrCoreConstants.defaultRespirationRateBpm,
     this.movementIntensity = 0.0,
     this.isMoving = false,
   });
@@ -71,13 +72,13 @@ class WifiSensingSystem {
   }
 
   void _handleIsolateUpdate(Map<String, dynamic> data) {
-    final id = data['id'] as String;
-    final px = data['px'] as double;
-    final py = data['py'] as double;
-    final pz = data['pz'] as double;
-    final resp = data['respiration'] as double;
-    final intensity = data['intensity'] as double;
-    final moving = data['isMoving'] as bool;
+    final id = data[VrCoreConstants.csiKeyId] as String;
+    final px = data[VrCoreConstants.csiKeyPx] as double;
+    final py = data[VrCoreConstants.csiKeyPy] as double;
+    final pz = data[VrCoreConstants.csiKeyPz] as double;
+    final resp = data[VrCoreConstants.csiKeyRespiration] as double;
+    final intensity = data[VrCoreConstants.csiKeyIntensity] as double;
+    final moving = data[VrCoreConstants.csiKeyIsMoving] as bool;
 
     // Update or add subject
     final idx = trackedSubjects.indexWhere((s) => s.id == id);
@@ -105,8 +106,8 @@ class WifiSensingSystem {
   void feedRawCsi(CsiFrame frame) {
     if (_isolateSendPort == null) return;
     _isolateSendPort!.send({
-      'timestamp': frame.timestamp,
-      'amplitudes': frame.amplitudes,
+      VrCoreConstants.csiKeyTimestamp: frame.timestamp,
+      VrCoreConstants.csiKeyAmplitudes: frame.amplitudes,
     });
   }
 

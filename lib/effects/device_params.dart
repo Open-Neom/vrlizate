@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../utils/constants/vr_core_constants.dart';
+
 /// VR headset device parameters.
 /// Different headsets have different lens properties.
 class DeviceParams {
@@ -25,10 +27,10 @@ class DeviceParams {
   const DeviceParams({
     required this.vendor,
     required this.model,
-    this.screenToLensDistance = 0.042,
-    this.interLensDistance = 0.064,
-    this.trayToLensDistance = 0.035,
-    this.distortionCoefficients = const [0.441, 0.156],
+    this.screenToLensDistance = VrCoreConstants.defaultScreenToLensDistance,
+    this.interLensDistance = VrCoreConstants.defaultInterLensDistance,
+    this.trayToLensDistance = VrCoreConstants.defaultTrayToLensDistance,
+    this.distortionCoefficients = VrCoreConstants.cardboardV1Distortion,
     this.fovAngles = const [40, 40, 40, 40],
   });
 
@@ -38,9 +40,9 @@ class DeviceParams {
   static const cardboardV1 = DeviceParams(
     vendor: 'Google',
     model: 'Cardboard V1',
-    screenToLensDistance: 0.042,
-    interLensDistance: 0.06,
-    distortionCoefficients: [0.441, 0.156],
+    screenToLensDistance: VrCoreConstants.defaultScreenToLensDistance,
+    interLensDistance: VrCoreConstants.cardboardV1InterLensDistance,
+    distortionCoefficients: VrCoreConstants.cardboardV1Distortion,
     fovAngles: [40, 40, 40, 40],
   );
 
@@ -48,9 +50,9 @@ class DeviceParams {
   static const cardboardV2 = DeviceParams(
     vendor: 'Google',
     model: 'Cardboard V2',
-    screenToLensDistance: 0.039,
-    interLensDistance: 0.064,
-    distortionCoefficients: [0.34, 0.55],
+    screenToLensDistance: VrCoreConstants.cardboardV2ScreenToLensDistance,
+    interLensDistance: VrCoreConstants.defaultInterLensDistance,
+    distortionCoefficients: VrCoreConstants.cardboardV2Distortion,
     fovAngles: [50, 50, 50, 50],
   );
 

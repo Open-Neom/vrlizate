@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'dart:typed_data';
 import 'package:vector_math/vector_math.dart' show Matrix4;
 
+import '../utils/constants/vr_core_constants.dart';
+
 /// Polynomial radial distortion for VR lens correction.
 /// Based on Google Cardboard SDK distortion algorithm.
 ///
@@ -26,26 +28,26 @@ class DistortionMesh {
   late final List<int> indices;
 
   DistortionMesh({
-    this.coefficients = const [0.441, 0.156],
-    this.resolution = 40,
-    this.screenToLensDistance = 0.042,
-    this.interLensDistance = 0.06,
+    this.coefficients = VrCoreConstants.cardboardV1Distortion,
+    this.resolution = VrCoreConstants.defaultDistortionMeshResolution,
+    this.screenToLensDistance = VrCoreConstants.defaultScreenToLensDistance,
+    this.interLensDistance = VrCoreConstants.cardboardV1InterLensDistance,
   }) {
     _computeMesh();
   }
 
   /// Google Cardboard V1 preset.
   factory DistortionMesh.cardboardV1() => DistortionMesh(
-    coefficients: const [0.441, 0.156],
-    screenToLensDistance: 0.042,
-    interLensDistance: 0.06,
+    coefficients: VrCoreConstants.cardboardV1Distortion,
+    screenToLensDistance: VrCoreConstants.defaultScreenToLensDistance,
+    interLensDistance: VrCoreConstants.cardboardV1InterLensDistance,
   );
 
   /// Google Cardboard V2 preset.
   factory DistortionMesh.cardboardV2() => DistortionMesh(
-    coefficients: const [0.34, 0.55],
-    screenToLensDistance: 0.039,
-    interLensDistance: 0.064,
+    coefficients: VrCoreConstants.cardboardV2Distortion,
+    screenToLensDistance: VrCoreConstants.cardboardV2ScreenToLensDistance,
+    interLensDistance: VrCoreConstants.defaultInterLensDistance,
   );
 
   /// No distortion (flat).

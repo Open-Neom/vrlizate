@@ -151,9 +151,16 @@ export 'components/vr_element.dart';
 export 'components/vr_scene.dart';
 
 // ============ Utils ============
+export 'utils/constants/vr_core_constants.dart';
+export 'utils/constants/vr_core_translation_constants.dart';
 export 'utils/constants/vr_gaze_constants.dart';
+export 'utils/enums/vr_device_capability_tier.dart';
 export 'utils/frustum.dart';
 export 'utils/vr_math.dart';
+
+// ============ Universal Ecosystem Domain ============
+export 'domain/models/vr_universal_quality_budget.dart';
+export 'domain/services/vr_universal_ecosystem_scaler.dart';
 
 // ============ Renderer Session Lifecycle ============
 export 'session/vr_session.dart';

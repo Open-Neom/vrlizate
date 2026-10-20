@@ -2,11 +2,13 @@ import 'dart:convert';
 
 import 'package:vector_math/vector_math.dart';
 
+import '../../utils/constants/vr_core_constants.dart';
 import '../input/vr_input_event_bus.dart';
 import 'vr_pairing_payload.dart';
 
 /// Current wire protocol understood by VRlizate remote controllers.
-const int vrControllerProtocolVersion = 1;
+const int vrControllerProtocolVersion =
+    VrCoreConstants.controllerProtocolVersion;
 
 enum VrControllerHandedness { unspecified, left, right }
 
@@ -32,15 +34,15 @@ class VrControlDescriptor {
     required VrControlKind kind,
     required double x,
     required double y,
-    double width = 0.18,
-    double height = 0.12,
+    double width = VrCoreConstants.defaultControlWidth,
+    double height = VrCoreConstants.defaultControlHeight,
   }) {
-    _requireNonEmpty(id, 'id');
-    _requireNonEmpty(label, 'label');
-    _requireUnit(x, 'x');
-    _requireUnit(y, 'y');
-    _requirePositiveUnit(width, 'width');
-    _requirePositiveUnit(height, 'height');
+    _requireNonEmpty(id, VrCoreConstants.keyId);
+    _requireNonEmpty(label, VrCoreConstants.keyLabel);
+    _requireUnit(x, VrCoreConstants.keyX);
+    _requireUnit(y, VrCoreConstants.keyY);
+    _requirePositiveUnit(width, VrCoreConstants.keyWidth);
+    _requirePositiveUnit(height, VrCoreConstants.keyHeight);
     return VrControlDescriptor._(
       id: id,
       label: label,
@@ -63,24 +65,24 @@ class VrControlDescriptor {
   });
 
   Map<String, Object?> toJson() => <String, Object?>{
-    'id': id,
-    'label': label,
-    'kind': kind.name,
-    'x': x,
-    'y': y,
-    'width': width,
-    'height': height,
+    VrCoreConstants.keyId: id,
+    VrCoreConstants.keyLabel: label,
+    VrCoreConstants.keyKind: kind.name,
+    VrCoreConstants.keyX: x,
+    VrCoreConstants.keyY: y,
+    VrCoreConstants.keyWidth: width,
+    VrCoreConstants.keyHeight: height,
   };
 
   factory VrControlDescriptor.fromJson(Map<String, dynamic> json) =>
       VrControlDescriptor(
-        id: _jsonString(json, 'id'),
-        label: _jsonString(json, 'label'),
-        kind: _jsonEnum(VrControlKind.values, json, 'kind'),
-        x: _jsonDouble(json, 'x'),
-        y: _jsonDouble(json, 'y'),
-        width: _jsonDouble(json, 'width'),
-        height: _jsonDouble(json, 'height'),
+        id: _jsonString(json, VrCoreConstants.keyId),
+        label: _jsonString(json, VrCoreConstants.keyLabel),
+        kind: _jsonEnum(VrControlKind.values, json, VrCoreConstants.keyKind),
+        x: _jsonDouble(json, VrCoreConstants.keyX),
+        y: _jsonDouble(json, VrCoreConstants.keyY),
+        width: _jsonDouble(json, VrCoreConstants.keyWidth),
+        height: _jsonDouble(json, VrCoreConstants.keyHeight),
       );
 
   @override
@@ -161,33 +163,40 @@ class VrControllerProfile {
   });
 
   Map<String, Object?> toJson() => <String, Object?>{
-    'protocolVersion': protocolVersion,
-    'deviceId': deviceId,
-    'deviceName': deviceName,
-    'handedness': handedness.name,
-    'widthMeters': widthMeters,
-    'heightMeters': heightMeters,
-    'controls': controls.map((control) => control.toJson()).toList(),
+    VrCoreConstants.keyProtocolVersion: protocolVersion,
+    VrCoreConstants.keyDeviceId: deviceId,
+    VrCoreConstants.keyDeviceName: deviceName,
+    VrCoreConstants.keyHandedness: handedness.name,
+    VrCoreConstants.keyWidthMeters: widthMeters,
+    VrCoreConstants.keyHeightMeters: heightMeters,
+    VrCoreConstants.keyControls: controls
+        .map((control) => control.toJson())
+        .toList(),
   };
 
   factory VrControllerProfile.fromJson(Map<String, dynamic> json) {
-    final rawControls = json['controls'];
+    final rawControls = json[VrCoreConstants.keyControls];
     if (rawControls is! List) {
       throw const FormatException(
         'Invalid profile field "controls": expected a list.',
       );
     }
     return VrControllerProfile(
-      protocolVersion: _jsonInt(json, 'protocolVersion'),
-      deviceId: _jsonString(json, 'deviceId'),
-      deviceName: _jsonString(json, 'deviceName'),
-      handedness: _jsonEnum(VrControllerHandedness.values, json, 'handedness'),
-      widthMeters: _jsonDouble(json, 'widthMeters'),
-      heightMeters: _jsonDouble(json, 'heightMeters'),
+      protocolVersion: _jsonInt(json, VrCoreConstants.keyProtocolVersion),
+      deviceId: _jsonString(json, VrCoreConstants.keyDeviceId),
+      deviceName: _jsonString(json, VrCoreConstants.keyDeviceName),
+      handedness: _jsonEnum(
+        VrControllerHandedness.values,
+        json,
+        VrCoreConstants.keyHandedness,
+      ),
+      widthMeters: _jsonDouble(json, VrCoreConstants.keyWidthMeters),
+      heightMeters: _jsonDouble(json, VrCoreConstants.keyHeightMeters),
       controls: rawControls
           .map(
-            (value) =>
-                VrControlDescriptor.fromJson(_jsonMapValue(value, 'controls')),
+            (value) => VrControlDescriptor.fromJson(
+              _jsonMapValue(value, VrCoreConstants.keyControls),
+            ),
           )
           .toList(growable: false),
     );
@@ -378,40 +387,59 @@ class VrRemotePoseFrame {
       target.setValues(accelerometerX, accelerometerY, accelerometerZ);
 
   Map<String, Object?> toJson() => <String, Object?>{
-    'sequence': sequence,
-    'timestampUs': senderTimestampMicroseconds,
-    'orientation': <double>[qx, qy, qz, qw],
-    'angularVelocity': <double>[
+    VrCoreConstants.keySequence: sequence,
+    VrCoreConstants.keyTimestampUs: senderTimestampMicroseconds,
+    VrCoreConstants.keyOrientation: <double>[qx, qy, qz, qw],
+    VrCoreConstants.keyAngularVelocity: <double>[
       angularVelocityX,
       angularVelocityY,
       angularVelocityZ,
     ],
-    'accelerometer': <double>[accelerometerX, accelerometerY, accelerometerZ],
-    'buttons': buttonsBitset,
-    if (touchX != null) 'touch': <double>[touchX!, touchY!],
+    VrCoreConstants.keyAccelerometer: <double>[
+      accelerometerX,
+      accelerometerY,
+      accelerometerZ,
+    ],
+    VrCoreConstants.keyButtons: buttonsBitset,
+    if (touchX != null) VrCoreConstants.keyTouch: <double>[touchX!, touchY!],
     if (rangeMeters != null)
-      'range': <String, Object?>{
-        'meters': rangeMeters,
-        'source': rangeSource!.name,
-        if (rangeConfidence != null) 'confidence': rangeConfidence,
+      VrCoreConstants.keyRange: <String, Object?>{
+        VrCoreConstants.keyMeters: rangeMeters,
+        VrCoreConstants.keySource: rangeSource!.name,
+        if (rangeConfidence != null)
+          VrCoreConstants.keyConfidence: rangeConfidence,
       },
   };
 
   factory VrRemotePoseFrame.fromJson(Map<String, dynamic> json) {
-    final orientation = _jsonNumberList(json, 'orientation', 4);
-    final velocity = _jsonNumberList(json, 'angularVelocity', 3);
-    final acceleration = json['accelerometer'] == null
+    final orientation = _jsonNumberList(
+      json,
+      VrCoreConstants.keyOrientation,
+      4,
+    );
+    final velocity = _jsonNumberList(
+      json,
+      VrCoreConstants.keyAngularVelocity,
+      3,
+    );
+    final acceleration = json[VrCoreConstants.keyAccelerometer] == null
         ? const <double>[0, 0, 0]
-        : _jsonNumberList(json, 'accelerometer', 3);
-    final touch = json['touch'] == null
+        : _jsonNumberList(json, VrCoreConstants.keyAccelerometer, 3);
+    final touch = json[VrCoreConstants.keyTouch] == null
         ? null
-        : _jsonNumberList(json, 'touch', 2);
-    final range = json['range'] == null
+        : _jsonNumberList(json, VrCoreConstants.keyTouch, 2);
+    final range = json[VrCoreConstants.keyRange] == null
         ? null
-        : _jsonMapValue(json['range'], 'range');
+        : _jsonMapValue(
+            json[VrCoreConstants.keyRange],
+            VrCoreConstants.keyRange,
+          );
     return VrRemotePoseFrame(
-      sequence: _jsonInt(json, 'sequence'),
-      senderTimestampMicroseconds: _jsonInt(json, 'timestampUs'),
+      sequence: _jsonInt(json, VrCoreConstants.keySequence),
+      senderTimestampMicroseconds: _jsonInt(
+        json,
+        VrCoreConstants.keyTimestampUs,
+      ),
       orientation: Quaternion(
         orientation[0],
         orientation[1],
@@ -420,16 +448,19 @@ class VrRemotePoseFrame {
       ),
       angularVelocity: Vector3(velocity[0], velocity[1], velocity[2]),
       accelerometer: Vector3(acceleration[0], acceleration[1], acceleration[2]),
-      buttonsBitset: _jsonInt(json, 'buttons'),
+      buttonsBitset: _jsonInt(json, VrCoreConstants.keyButtons),
       touchX: touch?[0],
       touchY: touch?[1],
-      rangeMeters: range == null ? null : _jsonDouble(range, 'meters'),
+      rangeMeters: range == null
+          ? null
+          : _jsonDouble(range, VrCoreConstants.keyMeters),
       rangeSource: range == null
           ? null
-          : _jsonEnum(VrRangeSource.values, range, 'source'),
-      rangeConfidence: range == null || range['confidence'] == null
+          : _jsonEnum(VrRangeSource.values, range, VrCoreConstants.keySource),
+      rangeConfidence:
+          range == null || range[VrCoreConstants.keyConfidence] == null
           ? null
-          : _jsonDouble(range, 'confidence'),
+          : _jsonDouble(range, VrCoreConstants.keyConfidence),
     );
   }
 
@@ -513,41 +544,44 @@ class VrInputEventSnapshot {
   }
 
   Map<String, Object?> toJson() => <String, Object?>{
-    'type': type.name,
-    'source': source.name,
-    'targetId': targetId,
-    'data': _toWireValue(data),
-    'active': active,
-    'timestampUs': timestampMicrosecondsSinceEpoch,
+    VrCoreConstants.keyType: type.name,
+    VrCoreConstants.keySource: source.name,
+    VrCoreConstants.keyTargetId: targetId,
+    VrCoreConstants.keyData: _toWireValue(data),
+    VrCoreConstants.keyActive: active,
+    VrCoreConstants.keyTimestampUs: timestampMicrosecondsSinceEpoch,
   };
 
   factory VrInputEventSnapshot.fromJson(Map<String, dynamic> json) {
-    final rawData = json['data'];
+    final rawData = json[VrCoreConstants.keyData];
     final decodedData = _fromWireValue(rawData);
     if (decodedData != null && decodedData is! Map<String, dynamic>) {
       throw const FormatException(
         'Invalid input field "data": expected an object.',
       );
     }
-    final targetId = json['targetId'];
+    final targetId = json[VrCoreConstants.keyTargetId];
     if (targetId != null && targetId is! String) {
       throw const FormatException(
         'Invalid input field "targetId": expected a string.',
       );
     }
-    final active = json['active'];
+    final active = json[VrCoreConstants.keyActive];
     if (active is! bool) {
       throw const FormatException(
         'Invalid input field "active": expected a boolean.',
       );
     }
     return VrInputEventSnapshot._(
-      type: _jsonEnum(VrInputType.values, json, 'type'),
-      source: _jsonEnum(VrInputSource.values, json, 'source'),
+      type: _jsonEnum(VrInputType.values, json, VrCoreConstants.keyType),
+      source: _jsonEnum(VrInputSource.values, json, VrCoreConstants.keySource),
       targetId: targetId as String?,
       data: decodedData as Map<String, dynamic>?,
       active: active,
-      timestampMicrosecondsSinceEpoch: _jsonInt(json, 'timestampUs'),
+      timestampMicrosecondsSinceEpoch: _jsonInt(
+        json,
+        VrCoreConstants.keyTimestampUs,
+      ),
     );
   }
 
@@ -570,17 +604,17 @@ sealed class VrControllerMessage {
   Map<String, Object?> toJson();
 
   static VrControllerMessage fromJson(Map<String, dynamic> json) {
-    final kind = _jsonString(json, 'kind');
+    final kind = _jsonString(json, VrCoreConstants.keyKind);
     return switch (kind) {
-      'hello' => VrHelloMessage.fromJson(json),
-      'ready' => VrReadyMessage.fromJson(json),
-      'profile' => VrProfileMessage.fromJson(json),
-      'pose' => VrPoseMessage.fromJson(json),
-      'input' => VrInputMessage.fromJson(json),
-      'ping' => VrPingMessage.fromJson(json),
-      'pong' => VrPongMessage.fromJson(json),
-      'disconnect' => VrDisconnectMessage.fromJson(json),
-      'error' => VrErrorMessage.fromJson(json),
+      VrCoreConstants.msgKindHello => VrHelloMessage.fromJson(json),
+      VrCoreConstants.msgKindReady => VrReadyMessage.fromJson(json),
+      VrCoreConstants.msgKindProfile => VrProfileMessage.fromJson(json),
+      VrCoreConstants.msgKindPose => VrPoseMessage.fromJson(json),
+      VrCoreConstants.msgKindInput => VrInputMessage.fromJson(json),
+      VrCoreConstants.msgKindPing => VrPingMessage.fromJson(json),
+      VrCoreConstants.msgKindPong => VrPongMessage.fromJson(json),
+      VrCoreConstants.msgKindDisconnect => VrDisconnectMessage.fromJson(json),
+      VrCoreConstants.msgKindError => VrErrorMessage.fromJson(json),
       _ => throw FormatException('Unknown controller message kind "$kind".'),
     };
   }
@@ -600,22 +634,22 @@ final class VrHelloMessage extends VrControllerMessage {
   });
 
   @override
-  String get kind => 'hello';
+  String get kind => VrCoreConstants.msgKindHello;
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{
-    'kind': kind,
-    'protocolVersion': protocolVersion,
-    'sessionToken': sessionToken,
-    'role': role.name,
-    'deviceName': deviceName,
+    VrCoreConstants.keyKind: kind,
+    VrCoreConstants.keyProtocolVersion: protocolVersion,
+    VrCoreConstants.keySessionToken: sessionToken,
+    VrCoreConstants.keyRole: role.name,
+    VrCoreConstants.keyDeviceName: deviceName,
   };
 
   factory VrHelloMessage.fromJson(Map<String, dynamic> json) => VrHelloMessage(
-    protocolVersion: _jsonInt(json, 'protocolVersion'),
-    sessionToken: _jsonString(json, 'sessionToken'),
-    role: _jsonEnum(VrDeviceRole.values, json, 'role'),
-    deviceName: _jsonOptionalString(json, 'deviceName'),
+    protocolVersion: _jsonInt(json, VrCoreConstants.keyProtocolVersion),
+    sessionToken: _jsonString(json, VrCoreConstants.keySessionToken),
+    role: _jsonEnum(VrDeviceRole.values, json, VrCoreConstants.keyRole),
+    deviceName: _jsonOptionalString(json, VrCoreConstants.keyDeviceName),
   );
 }
 
@@ -625,16 +659,17 @@ final class VrReadyMessage extends VrControllerMessage {
   const VrReadyMessage({this.protocolVersion = vrControllerProtocolVersion});
 
   @override
-  String get kind => 'ready';
+  String get kind => VrCoreConstants.msgKindReady;
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{
-    'kind': kind,
-    'protocolVersion': protocolVersion,
+    VrCoreConstants.keyKind: kind,
+    VrCoreConstants.keyProtocolVersion: protocolVersion,
   };
 
-  factory VrReadyMessage.fromJson(Map<String, dynamic> json) =>
-      VrReadyMessage(protocolVersion: _jsonInt(json, 'protocolVersion'));
+  factory VrReadyMessage.fromJson(Map<String, dynamic> json) => VrReadyMessage(
+    protocolVersion: _jsonInt(json, VrCoreConstants.keyProtocolVersion),
+  );
 }
 
 final class VrProfileMessage extends VrControllerMessage {
@@ -642,16 +677,18 @@ final class VrProfileMessage extends VrControllerMessage {
   const VrProfileMessage(this.profile);
 
   @override
-  String get kind => 'profile';
+  String get kind => VrCoreConstants.msgKindProfile;
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{
-    'kind': kind,
-    'profile': profile.toJson(),
+    VrCoreConstants.keyKind: kind,
+    VrCoreConstants.keyProfile: profile.toJson(),
   };
 
   factory VrProfileMessage.fromJson(Map<String, dynamic> json) =>
-      VrProfileMessage(VrControllerProfile.fromJson(_jsonMap(json, 'profile')));
+      VrProfileMessage(
+        VrControllerProfile.fromJson(_jsonMap(json, VrCoreConstants.keyProfile)),
+      );
 }
 
 final class VrPoseMessage extends VrControllerMessage {
@@ -659,16 +696,17 @@ final class VrPoseMessage extends VrControllerMessage {
   const VrPoseMessage(this.frame);
 
   @override
-  String get kind => 'pose';
+  String get kind => VrCoreConstants.msgKindPose;
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{
-    'kind': kind,
-    'frame': frame.toJson(),
+    VrCoreConstants.keyKind: kind,
+    VrCoreConstants.keyFrame: frame.toJson(),
   };
 
-  factory VrPoseMessage.fromJson(Map<String, dynamic> json) =>
-      VrPoseMessage(VrRemotePoseFrame.fromJson(_jsonMap(json, 'frame')));
+  factory VrPoseMessage.fromJson(Map<String, dynamic> json) => VrPoseMessage(
+    VrRemotePoseFrame.fromJson(_jsonMap(json, VrCoreConstants.keyFrame)),
+  );
 }
 
 final class VrInputMessage extends VrControllerMessage {
@@ -676,16 +714,17 @@ final class VrInputMessage extends VrControllerMessage {
   VrInputMessage(this.event);
 
   @override
-  String get kind => 'input';
+  String get kind => VrCoreConstants.msgKindInput;
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{
-    'kind': kind,
-    'event': event.toJson(),
+    VrCoreConstants.keyKind: kind,
+    VrCoreConstants.keyEvent: event.toJson(),
   };
 
-  factory VrInputMessage.fromJson(Map<String, dynamic> json) =>
-      VrInputMessage(VrInputEventSnapshot.fromJson(_jsonMap(json, 'event')));
+  factory VrInputMessage.fromJson(Map<String, dynamic> json) => VrInputMessage(
+    VrInputEventSnapshot.fromJson(_jsonMap(json, VrCoreConstants.keyEvent)),
+  );
 }
 
 final class VrPingMessage extends VrControllerMessage {
@@ -697,18 +736,21 @@ final class VrPingMessage extends VrControllerMessage {
   });
 
   @override
-  String get kind => 'ping';
+  String get kind => VrCoreConstants.msgKindPing;
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{
-    'kind': kind,
-    'id': id,
-    'sentTimestampUs': sentTimestampMicroseconds,
+    VrCoreConstants.keyKind: kind,
+    VrCoreConstants.keyId: id,
+    VrCoreConstants.keySentTimestampUs: sentTimestampMicroseconds,
   };
 
   factory VrPingMessage.fromJson(Map<String, dynamic> json) => VrPingMessage(
-    id: _jsonInt(json, 'id'),
-    sentTimestampMicroseconds: _jsonInt(json, 'sentTimestampUs'),
+    id: _jsonInt(json, VrCoreConstants.keyId),
+    sentTimestampMicroseconds: _jsonInt(
+      json,
+      VrCoreConstants.keySentTimestampUs,
+    ),
   );
 }
 
@@ -723,20 +765,26 @@ final class VrPongMessage extends VrControllerMessage {
   });
 
   @override
-  String get kind => 'pong';
+  String get kind => VrCoreConstants.msgKindPong;
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{
-    'kind': kind,
-    'id': id,
-    'sentTimestampUs': sentTimestampMicroseconds,
-    'responseTimestampUs': responseTimestampMicroseconds,
+    VrCoreConstants.keyKind: kind,
+    VrCoreConstants.keyId: id,
+    VrCoreConstants.keySentTimestampUs: sentTimestampMicroseconds,
+    VrCoreConstants.keyResponseTimestampUs: responseTimestampMicroseconds,
   };
 
   factory VrPongMessage.fromJson(Map<String, dynamic> json) => VrPongMessage(
-    id: _jsonInt(json, 'id'),
-    sentTimestampMicroseconds: _jsonInt(json, 'sentTimestampUs'),
-    responseTimestampMicroseconds: _jsonInt(json, 'responseTimestampUs'),
+    id: _jsonInt(json, VrCoreConstants.keyId),
+    sentTimestampMicroseconds: _jsonInt(
+      json,
+      VrCoreConstants.keySentTimestampUs,
+    ),
+    responseTimestampMicroseconds: _jsonInt(
+      json,
+      VrCoreConstants.keyResponseTimestampUs,
+    ),
   );
 }
 
@@ -745,16 +793,18 @@ final class VrDisconnectMessage extends VrControllerMessage {
   const VrDisconnectMessage({this.reason});
 
   @override
-  String get kind => 'disconnect';
+  String get kind => VrCoreConstants.msgKindDisconnect;
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{
-    'kind': kind,
-    'reason': reason,
+    VrCoreConstants.keyKind: kind,
+    VrCoreConstants.keyReason: reason,
   };
 
   factory VrDisconnectMessage.fromJson(Map<String, dynamic> json) =>
-      VrDisconnectMessage(reason: _jsonOptionalString(json, 'reason'));
+      VrDisconnectMessage(
+        reason: _jsonOptionalString(json, VrCoreConstants.keyReason),
+      );
 }
 
 final class VrErrorMessage extends VrControllerMessage {
@@ -763,18 +813,18 @@ final class VrErrorMessage extends VrControllerMessage {
   VrErrorMessage({required this.code, required this.message});
 
   @override
-  String get kind => 'error';
+  String get kind => VrCoreConstants.msgKindError;
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{
-    'kind': kind,
-    'code': code,
-    'message': message,
+    VrCoreConstants.keyKind: kind,
+    VrCoreConstants.keyCode: code,
+    VrCoreConstants.keyMessage: message,
   };
 
   factory VrErrorMessage.fromJson(Map<String, dynamic> json) => VrErrorMessage(
-    code: _jsonString(json, 'code'),
-    message: _jsonString(json, 'message'),
+    code: _jsonString(json, VrCoreConstants.keyCode),
+    message: _jsonString(json, VrCoreConstants.keyMessage),
   );
 }
 
@@ -801,20 +851,25 @@ Object? _toWireValue(Object? value) {
   }
   if (value is Quaternion) {
     return <String, Object?>{
-      r'$type': 'quaternion',
-      'value': <double>[value.x, value.y, value.z, value.w],
+      VrCoreConstants.keyWireType: VrCoreConstants.wireTypeQuaternion,
+      VrCoreConstants.keyWireValue: <double>[
+        value.x,
+        value.y,
+        value.z,
+        value.w,
+      ],
     };
   }
   if (value is Vector2) {
     return <String, Object?>{
-      r'$type': 'vector2',
-      'value': <double>[value.x, value.y],
+      VrCoreConstants.keyWireType: VrCoreConstants.wireTypeVector2,
+      VrCoreConstants.keyWireValue: <double>[value.x, value.y],
     };
   }
   if (value is Vector3) {
     return <String, Object?>{
-      r'$type': 'vector3',
-      'value': <double>[value.x, value.y, value.z],
+      VrCoreConstants.keyWireType: VrCoreConstants.wireTypeVector3,
+      VrCoreConstants.keyWireValue: <double>[value.x, value.y, value.z],
     };
   }
   if (value is List) return value.map(_toWireValue).toList(growable: false);
@@ -846,22 +901,21 @@ Object? _fromWireValue(Object? value) {
   if (value is List) return value.map(_fromWireValue).toList(growable: false);
   if (value is Map) {
     final map = value.map((key, value) => MapEntry(key.toString(), value));
-    final type = map[r'$type'];
+    final type = map[VrCoreConstants.keyWireType];
     if (type != null) {
-      final raw = map['value'];
+      final raw = map[VrCoreConstants.keyWireValue];
       if (raw is! List || !raw.every((item) => item is num)) {
         throw FormatException('Invalid typed wire value for "$type".');
       }
       final numbers = raw.map((item) => (item as num).toDouble()).toList();
       return switch (type) {
-        'quaternion' when numbers.length == 4 => Quaternion(
+        VrCoreConstants.wireTypeQuaternion when numbers.length == 4 =>
+          Quaternion(numbers[0], numbers[1], numbers[2], numbers[3]),
+        VrCoreConstants.wireTypeVector2 when numbers.length == 2 => Vector2(
           numbers[0],
           numbers[1],
-          numbers[2],
-          numbers[3],
         ),
-        'vector2' when numbers.length == 2 => Vector2(numbers[0], numbers[1]),
-        'vector3' when numbers.length == 3 => Vector3(
+        VrCoreConstants.wireTypeVector3 when numbers.length == 3 => Vector3(
           numbers[0],
           numbers[1],
           numbers[2],

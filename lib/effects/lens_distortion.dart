@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import '../utils/constants/vr_core_constants.dart';
+
 /// Lens distortion parameters for VR optics.
 /// Barrel distortion corrects for the magnification effect of VR lenses.
 class LensDistortion {
@@ -13,13 +15,16 @@ class LensDistortion {
   final double chromaticAberration;
 
   const LensDistortion({
-    this.k1 = 0.22,
-    this.k2 = 0.24,
+    this.k1 = VrCoreConstants.defaultLensK1,
+    this.k2 = VrCoreConstants.defaultLensK2,
     this.chromaticAberration = 0,
   });
 
   /// Google Cardboard v2 defaults.
-  static const cardboard = LensDistortion(k1: 0.34, k2: 0.55);
+  static const cardboard = LensDistortion(
+    k1: VrCoreConstants.cardboardV2K1,
+    k2: VrCoreConstants.cardboardV2K2,
+  );
 
   /// No distortion (for testing).
   static const none = LensDistortion(k1: 0, k2: 0);

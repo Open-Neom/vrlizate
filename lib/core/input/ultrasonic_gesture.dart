@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../../utils/constants/vr_core_constants.dart';
+
 /// Gestures detectable through active ultrasonic sensing (speaker emits an
 /// inaudible tone, the microphone listens to the hand's echo).
 enum UltrasonicGesture {
@@ -65,13 +67,15 @@ class UltrasonicGestureConfig {
   final Duration gestureCooldown;
 
   const UltrasonicGestureConfig({
-    this.sampleRate = 48000,
-    this.carrierFrequency = 19000,
-    this.fftSize = 1024,
-    this.bandwidth = 1200,
-    this.presenceThreshold = 1.8,
-    this.dopplerThreshold = 120,
-    this.gestureCooldown = const Duration(milliseconds: 350),
+    this.sampleRate = VrCoreConstants.defaultUltrasonicSampleRate,
+    this.carrierFrequency = VrCoreConstants.defaultUltrasonicCarrierFrequency,
+    this.fftSize = VrCoreConstants.defaultUltrasonicFftSize,
+    this.bandwidth = VrCoreConstants.defaultUltrasonicBandwidth,
+    this.presenceThreshold = VrCoreConstants.defaultUltrasonicPresenceThreshold,
+    this.dopplerThreshold = VrCoreConstants.defaultUltrasonicDopplerThreshold,
+    this.gestureCooldown = const Duration(
+      milliseconds: VrCoreConstants.defaultUltrasonicCooldownMs,
+    ),
   });
 }
 
@@ -98,7 +102,7 @@ class UltrasonicGestureChannel {
 
   /// Current noise floor estimate of the analysis band (linear energy).
   double get noiseFloor => _noiseFloor;
-  double _noiseFloor = 1e-9;
+  double _noiseFloor = VrCoreConstants.defaultUltrasonicNoiseFloor;
 
   /// Whether a hand is currently present in the sensing zone.
   bool get handPresent => _handPresent;
@@ -117,7 +121,10 @@ class UltrasonicGestureChannel {
   /// host app's audio output.
   List<double> generateTone(int numSamples) {
     final w = 2 * math.pi * config.carrierFrequency / config.sampleRate;
-    return List<double>.generate(numSamples, (n) => 0.6 * math.sin(w * n));
+    return List<double>.generate(
+      numSamples,
+      (n) => VrCoreConstants.defaultUltrasonicToneAmplitude * math.sin(w * n),
+    );
   }
 
   /// Feeds raw mono PCM samples (-1..1) captured from the microphone.
@@ -147,7 +154,9 @@ class UltrasonicGestureChannel {
     );
 
     // Leakage guard: skip bins immediately adjacent to the carrier itself.
-    final guard = (30 / binHz).ceil().clamp(1, bandBins);
+    final guard = (VrCoreConstants.ultrasonicCarrierLeakageGuardHz / binHz)
+        .ceil()
+        .clamp(1, bandBins);
 
     var lowerEnergy = 0.0;
     for (var i = lowerStart; i < carrierIdx - guard; i++) {
@@ -165,7 +174,8 @@ class UltrasonicGestureChannel {
     if (!_handPresent) {
       _noiseFloor = total < _noiseFloor
           ? total
-          : _noiseFloor * 0.995 + total * 0.005;
+          : _noiseFloor * VrCoreConstants.ultrasonicNoiseFloorRetention +
+                total * VrCoreConstants.ultrasonicNoiseFloorUpdateRate;
     }
 
     final strength = total / math.max(_noiseFloor, 1e-12);
@@ -217,7 +227,7 @@ class UltrasonicGestureChannel {
   /// Resets noise-floor and presence state (e.g. when the tone restarts).
   void reset() {
     _buffer.clear();
-    _noiseFloor = 1e-9;
+    _noiseFloor = VrCoreConstants.defaultUltrasonicNoiseFloor;
     _handPresent = false;
     _lastDopplerHz = 0;
     _lastGestureTime = null;

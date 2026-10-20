@@ -1,3 +1,5 @@
+import '../../utils/constants/vr_core_constants.dart';
+
 /// Role of a device in a VRlizate controller pairing session.
 enum VrDeviceRole { parent, child }
 
@@ -7,8 +9,8 @@ enum VrTransportType { localSocket, bluetoothLe, wifiDirect }
 /// Immutable connection invitation shared by the parent visor and child
 /// controller.
 class VrPairingPayload {
-  static const String uriScheme = 'vrlizate';
-  static const String uriEndpoint = 'pair';
+  static const String uriScheme = VrCoreConstants.pairingUriScheme;
+  static const String uriEndpoint = VrCoreConstants.pairingUriEndpoint;
 
   final String host;
   final int port;
@@ -57,15 +59,17 @@ class VrPairingPayload {
   /// Encodes this invitation as a canonical `vrlizate://pair` URI.
   Uri toUri() {
     final query = <String, String>{
-      'host': host,
-      'port': port.toString(),
-      'token': sessionToken,
-      'role': role.name,
-      'transport': transportType.name,
+      VrCoreConstants.keyHost: host,
+      VrCoreConstants.keyPort: port.toString(),
+      VrCoreConstants.keyToken: sessionToken,
+      VrCoreConstants.keyRole: role.name,
+      VrCoreConstants.keyTransport: transportType.name,
     };
-    if (deviceName != null) query['deviceName'] = deviceName!;
+    if (deviceName != null) {
+      query[VrCoreConstants.keyDeviceName] = deviceName!;
+    }
     if (bleServiceUuid != null) {
-      query['bleServiceUuid'] = bleServiceUuid!;
+      query[VrCoreConstants.keyBleServiceUuid] = bleServiceUuid!;
     }
 
     return Uri(scheme: uriScheme, host: uriEndpoint, queryParameters: query);
@@ -93,16 +97,27 @@ class VrPairingPayload {
       );
     }
 
-    final host = _requiredUriParameter(uri, 'host');
-    final portText = _requiredUriParameter(uri, 'port');
-    final token = _requiredUriParameter(uri, 'token');
-    final roleText = _requiredUriParameter(uri, 'role');
-    final transportText = _requiredUriParameter(uri, 'transport');
-    final deviceName = _optionalUriParameter(uri, 'deviceName');
-    final bleServiceUuid = _optionalUriParameter(uri, 'bleServiceUuid');
+    final host = _requiredUriParameter(uri, VrCoreConstants.keyHost);
+    final portText = _requiredUriParameter(uri, VrCoreConstants.keyPort);
+    final token = _requiredUriParameter(uri, VrCoreConstants.keyToken);
+    final roleText = _requiredUriParameter(uri, VrCoreConstants.keyRole);
+    final transportText = _requiredUriParameter(
+      uri,
+      VrCoreConstants.keyTransport,
+    );
+    final deviceName = _optionalUriParameter(
+      uri,
+      VrCoreConstants.keyDeviceName,
+    );
+    final bleServiceUuid = _optionalUriParameter(
+      uri,
+      VrCoreConstants.keyBleServiceUuid,
+    );
 
     final port = int.tryParse(portText);
-    if (port == null || port < 1 || port > 65535) {
+    if (port == null ||
+        port < VrCoreConstants.minPort ||
+        port > VrCoreConstants.maxPort) {
       throw FormatException(
         'Invalid pairing URI parameter "port": expected an integer from 1 '
         'to 65535, got "$portText".',
@@ -110,11 +125,16 @@ class VrPairingPayload {
       );
     }
 
-    final role = _enumByName(VrDeviceRole.values, roleText, 'role', uri);
+    final role = _enumByName(
+      VrDeviceRole.values,
+      roleText,
+      VrCoreConstants.keyRole,
+      uri,
+    );
     final transport = _enumByName(
       VrTransportType.values,
       transportText,
-      'transport',
+      VrCoreConstants.keyTransport,
       uri,
     );
 
@@ -130,36 +150,47 @@ class VrPairingPayload {
   }
 
   Map<String, Object?> toJson() => <String, Object?>{
-    'host': host,
-    'port': port,
-    'sessionToken': sessionToken,
-    'role': role.name,
-    'transportType': transportType.name,
-    'deviceName': deviceName,
-    'bleServiceUuid': bleServiceUuid,
+    VrCoreConstants.keyHost: host,
+    VrCoreConstants.keyPort: port,
+    VrCoreConstants.keySessionToken: sessionToken,
+    VrCoreConstants.keyRole: role.name,
+    VrCoreConstants.keyTransportType: transportType.name,
+    VrCoreConstants.keyDeviceName: deviceName,
+    VrCoreConstants.keyBleServiceUuid: bleServiceUuid,
   };
 
   factory VrPairingPayload.fromJson(Map<String, dynamic> json) {
-    final host = _requiredJsonString(json, 'host');
-    final port = _requiredJsonInt(json, 'port');
-    final token = _requiredJsonString(json, 'sessionToken');
-    final roleText = _requiredJsonString(json, 'role');
-    final transportText = _requiredJsonString(json, 'transportType');
-    final deviceName = _optionalJsonString(json, 'deviceName');
-    final bleServiceUuid = _optionalJsonString(json, 'bleServiceUuid');
+    final host = _requiredJsonString(json, VrCoreConstants.keyHost);
+    final port = _requiredJsonInt(json, VrCoreConstants.keyPort);
+    final token = _requiredJsonString(json, VrCoreConstants.keySessionToken);
+    final roleText = _requiredJsonString(json, VrCoreConstants.keyRole);
+    final transportText = _requiredJsonString(
+      json,
+      VrCoreConstants.keyTransportType,
+    );
+    final deviceName = _optionalJsonString(json, VrCoreConstants.keyDeviceName);
+    final bleServiceUuid = _optionalJsonString(
+      json,
+      VrCoreConstants.keyBleServiceUuid,
+    );
 
-    if (port < 1 || port > 65535) {
+    if (port < VrCoreConstants.minPort || port > VrCoreConstants.maxPort) {
       throw FormatException(
         'Invalid JSON field "port": expected an integer from 1 to 65535, '
         'got "$port".',
       );
     }
 
-    final role = _enumByName(VrDeviceRole.values, roleText, 'role', json);
+    final role = _enumByName(
+      VrDeviceRole.values,
+      roleText,
+      VrCoreConstants.keyRole,
+      json,
+    );
     final transport = _enumByName(
       VrTransportType.values,
       transportText,
-      'transportType',
+      VrCoreConstants.keyTransportType,
       json,
     );
 

@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:vector_math/vector_math.dart';
 
+import '../../utils/constants/vr_core_constants.dart';
+
 /// A Wi-Fi RTT (IEEE 802.11mc) anchor: an access point or RTT-capable device
 /// with a known physical position in the room.
 class WifiRttAnchor {
@@ -101,9 +103,11 @@ class WifiRttPositioning {
   RttPosition? _lastPosition;
 
   WifiRttPositioning({
-    this.measurementWindow = const Duration(seconds: 2),
-    this.outlierThreshold = 2.0,
-    this.smoothing = 0.4,
+    this.measurementWindow = const Duration(
+      seconds: VrCoreConstants.defaultRttWindowSeconds,
+    ),
+    this.outlierThreshold = VrCoreConstants.defaultRttOutlierThresholdMeters,
+    this.smoothing = VrCoreConstants.defaultRttSmoothing,
   });
 
   /// Registers or updates an anchor position.
@@ -135,7 +139,9 @@ class WifiRttPositioning {
         freshest[m.anchorId] = m;
       }
     }
-    if (freshest.length < 3) return; // Need >= 3 anchors for a 2D/3D fix.
+    if (freshest.length < VrCoreConstants.minRttAnchorsForFix) {
+      return; // Need >= 3 anchors for a 2D/3D fix.
+    }
 
     var used = freshest.values.toList();
     var result = _leastSquares(used);
@@ -143,7 +149,7 @@ class WifiRttPositioning {
     // Outlier rejection: drop the worst measurement and re-solve once.
     if (result != null &&
         result.residualRms > outlierThreshold &&
-        used.length > 3) {
+        used.length > VrCoreConstants.minRttAnchorsForFix) {
       var worstIdx = 0;
       var worstResidual = 0.0;
       for (var i = 0; i < used.length; i++) {
@@ -194,7 +200,11 @@ class WifiRttPositioning {
     if (wSum <= 0) return null;
     estimate /= wSum;
 
-    for (var iter = 0; iter < 12; iter++) {
+    for (
+      var iter = 0;
+      iter < VrCoreConstants.maxRttGaussNewtonIterations;
+      iter++
+    ) {
       final n = measurements.length;
       // Normal equations JᵀWJ Δ = JᵀWr for a 3-DOF position.
       final a = List<double>.filled(9, 0); // 3x3 symmetric
