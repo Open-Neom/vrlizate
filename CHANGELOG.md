@@ -1,7 +1,10 @@
 # Changelog
 
-## 1.13.0 — Unreleased
+## 1.13.0 — 2026-10-20
 
+- Add `VrCoreConstants` and `VrCoreTranslationConstants` centralizing protocol keys, ultrasonic/Wi-Fi sensing thresholds, and lens distortion defaults.
+- Add `VrDeviceCapabilityTier` (`ultraFlagship`, `balancedMidRange`, `accessibleEntryLevel`, `singlePhoneStandalone`), `VrUniversalQualityBudget`, and `VrUniversalEcosystemScaler` for automatic hardware classification and live frame-time adaptive scaling across all smartphones.
+- Add `VrGazeConstants` with deliberate gaze dwell (`2.6 s` default dwell, `1.6 s` minimum dwell, `0.35 s` stabilization delay) in `GazePointer` to prevent accidental gaze selections.
 - Add `VrCurves`, `VrSeededRandom`, `VrMonotoneSpline` (Fritsch–Carlson monotone
   cubic spline without overshoot), `VrCurveTrack`, `VrVector3Track`, and
   `VrBeatTimeline` in `animation/procedural_curves.dart`.
