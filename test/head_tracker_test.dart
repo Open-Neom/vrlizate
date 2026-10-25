@@ -67,8 +67,9 @@ void main() {
         async.elapse(const Duration(seconds: 1));
 
         final now = DateTime.now();
-        // Send initial accelerometer and gyroscope readings
-        accelController.add(AccelerometerEvent(0, 0, 9.8, now));
+        // A level landscape visor has vertical along device X. A face-up
+        // fixture points at the heading pole, where yaw is deliberately held.
+        accelController.add(AccelerometerEvent(9.8, 0, 0, now));
         gyroController.add(GyroscopeEvent(0, 0, 0, now));
         async.flushMicrotasks();
 

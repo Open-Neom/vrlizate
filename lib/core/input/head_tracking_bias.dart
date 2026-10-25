@@ -22,7 +22,7 @@ class HeadTrackingBiasEstimator {
   double _sumXX = 0, _sumYY = 0, _sumZZ = 0;
   int _samples = 0;
   bool _accepted = false;
-  double _biasX = 0, _biasY = 0;
+  double _biasX = 0, _biasY = 0, _biasZ = 0;
   String _status = 'waiting_for_gravity';
 
   int get sampleCount => _samples;
@@ -30,6 +30,7 @@ class HeadTrackingBiasEstimator {
   bool get accepted => _accepted;
   double get biasX => _biasX;
   double get biasY => _biasY;
+  double get biasZ => _biasZ;
   String get status => _status;
 
   void request({bool clearGravity = false}) {
@@ -135,6 +136,7 @@ class HeadTrackingBiasEstimator {
     }
     _biasX = meanX;
     _biasY = meanY;
+    _biasZ = meanZ;
     _accepted = true;
     _status = 'accepted';
     return true;

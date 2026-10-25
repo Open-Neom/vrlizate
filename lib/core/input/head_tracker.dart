@@ -23,6 +23,10 @@ abstract class RotationTarget {
 
 /// Head tracking input via device gyroscope with calibration and background Isolate.
 class HeadTracker {
+  /// Host-level calibrated motion backend, configured before creating scenes.
+  /// Instance overrides take precedence; null retains sensors_plus defaults.
+  static Stream<GyroscopeEvent> Function()? platformGyroscopeStreamFactory;
+
   final RotationTarget target;
 
   /// Scale for gyro yaw and gyro-only relative pitch. Gravity-referenced pitch
@@ -47,19 +51,22 @@ class HeadTracker {
   bool get canStart =>
       VrSensorCapabilities.supportsDeviceMotion ||
       gyroscopeStreamOverride != null ||
-      accelerometerStreamOverride != null;
+      accelerometerStreamOverride != null ||
+      platformGyroscopeStreamFactory != null;
 
   StreamSubscription<GyroscopeEvent>? _subscription;
   StreamSubscription<AccelerometerEvent>? _accelSubscription;
 
   double _offsetX = 0;
   double _offsetY = 0;
+  double _offsetZ = 0;
   bool _calibrating = false;
   final _biasEstimator = HeadTrackingBiasEstimator();
 
   /// Diagnostics in radians/second; reading them never changes tracking.
   double get gyroBiasX => _offsetX;
   double get gyroBiasY => _offsetY;
+  double get gyroBiasZ => _offsetZ;
   bool get isCalibrating => _calibrating;
   String get calibrationStatus => _running ? _biasEstimator.status : 'stopped';
   int get calibrationSamples => _biasEstimator.sampleCount;
@@ -180,13 +187,7 @@ class HeadTracker {
       },
     );
 
-    final gyroscopeEvents =
-        gyroscopeStreamOverride ??
-        (platformSensors
-            ? gyroscopeEventStream(
-                samplingPeriod: SensorInterval.fastestInterval,
-              )
-            : null);
+    final gyroscopeEvents = _gyroscopeEvents(platformSensors);
     _subscription = gyroscopeEvents?.listen(
       (event) {
         if (!_running ||
@@ -209,6 +210,7 @@ class HeadTracker {
             )) {
           _offsetX = _biasEstimator.biasX;
           _offsetY = _biasEstimator.biasY;
+          _offsetZ = _biasEstimator.biasZ;
           _calibrating = false;
           // Discard predicted velocity from the old bias without moving gaze.
           _resetFusion();
@@ -222,10 +224,11 @@ class HeadTracker {
             event.y,
             timestampUs,
             _workerRevision,
+            event.z,
           ]);
         } else {
           _configureFusion();
-          if (_fusion.addGyroscope(event.x, event.y, timestampUs)) {
+          if (_fusion.addGyroscope(event.x, event.y, timestampUs, z: event.z)) {
             _applyFusion(_fusion.dYaw, _fusion.dPitch, _fusion.absolutePitch);
           }
         }
@@ -239,6 +242,21 @@ class HeadTracker {
     );
   }
 
+  Stream<GyroscopeEvent>? _gyroscopeEvents(bool platformSensors) {
+    if (gyroscopeStreamOverride != null) return gyroscopeStreamOverride;
+    final factory = platformGyroscopeStreamFactory;
+    if (factory != null) {
+      try {
+        return factory();
+      } catch (error, stack) {
+        return Stream<GyroscopeEvent>.error(error, stack);
+      }
+    }
+    return platformSensors
+        ? gyroscopeEventStream(samplingPeriod: SensorInterval.fastestInterval)
+        : null;
+  }
+
   void _configureFusion() {
     _fusion
       ..sensitivity = sensitivity
@@ -246,7 +264,8 @@ class HeadTracker {
       ..predictionMs = predictionMs
       ..jitterDamping = jitterDamping
       ..offsetX = _offsetX
-      ..offsetY = _offsetY;
+      ..offsetY = _offsetY
+      ..offsetZ = _offsetZ;
   }
 
   void _sendConfiguration({bool force = false}) {
@@ -256,7 +275,8 @@ class HeadTracker {
         _fusion.predictionMs == predictionMs &&
         _fusion.jitterDamping == jitterDamping &&
         _fusion.offsetX == _offsetX &&
-        _fusion.offsetY == _offsetY) {
+        _fusion.offsetY == _offsetY &&
+        _fusion.offsetZ == _offsetZ) {
       return;
     }
     _configureFusion();
@@ -269,6 +289,7 @@ class HeadTracker {
       pitchGain,
       jitterDamping,
       _workerRevision,
+      _offsetZ,
     ]);
   }
 
@@ -344,9 +365,11 @@ class HeadTracker {
     _biasEstimator.request();
     if (!_offsetX.isFinite ||
         !_offsetY.isFinite ||
+        !_offsetZ.isFinite ||
         _offsetX.abs() > HeadTrackingBiasEstimator.maxBias ||
-        _offsetY.abs() > HeadTrackingBiasEstimator.maxBias) {
-      _offsetX = _offsetY = 0;
+        _offsetY.abs() > HeadTrackingBiasEstimator.maxBias ||
+        _offsetZ.abs() > HeadTrackingBiasEstimator.maxBias) {
+      _offsetX = _offsetY = _offsetZ = 0;
       _resetFusion();
       _sendConfiguration(force: true);
     }

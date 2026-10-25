@@ -33,6 +33,7 @@ void main() {
       expect(estimator.accepted, isTrue);
       expect(estimator.biasX, closeTo(.0006, 1e-12));
       expect(estimator.biasY, closeTo(-.0004, 1e-12));
+      expect(estimator.biasZ, closeTo(.0002, 1e-12));
     },
   );
 

@@ -51,9 +51,9 @@ class BackgroundIsolate {
 /// Messages carry sensor acquisition timestamps and a reset revision so queued
 /// pre-recenter output cannot rotate a freshly recentered camera.
 /// Protocol:
-/// - [0, sensitivity, predictionMs, offsetX, offsetY, pitchGain, damping, revision]
+/// - [0, sensitivity, predictionMs, offsetX, offsetY, pitchGain, damping, revision, offsetZ?]
 /// - [1, accelX, accelY, accelZ]
-/// - [2, gyroX, gyroY, timestampUs, revision]
+/// - [2, gyroX, gyroY, timestampUs, revision, gyroZ?]
 /// - [3, revision] resets temporal state, retaining measured gravity.
 /// - [4, revision] invalidates a stale or unavailable gravity reference.
 /// Emits [revision, dYaw, dPitch, absolutePitchOrNull].
@@ -72,6 +72,7 @@ void headTrackingFusionEntry(dynamic mainSendPortArg) {
           ..predictionMs = (message[2] as num).toDouble()
           ..offsetX = (message[3] as num).toDouble()
           ..offsetY = (message[4] as num).toDouble()
+          ..offsetZ = message.length > 8 ? (message[8] as num).toDouble() : 0
           ..pitchGain = (message[5] as num).toDouble()
           ..jitterDamping = message[6] as bool;
         revision = message[7] as int;
@@ -87,6 +88,7 @@ void headTrackingFusionEntry(dynamic mainSendPortArg) {
           (message[1] as num).toDouble(),
           (message[2] as num).toDouble(),
           message[3] as int,
+          z: message.length > 5 ? (message[5] as num).toDouble() : 0,
         )) {
           mainSendPort.send([
             revision,

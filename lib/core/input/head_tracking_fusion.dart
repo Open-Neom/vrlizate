@@ -1,8 +1,8 @@
 import 'dart:math';
 
 /// Shared, allocation-free fusion state for the main thread and native worker.
-/// Device X drives yaw and device Y drives pitch in the existing landscape
-/// mapping. Gravity is a pitch reference only; it cannot correct yaw drift.
+/// Gravity identifies the physical vertical in any screen orientation. It
+/// references pitch and maps gyro axes, but never corrects yaw toward zero.
 class HeadTrackingFusion {
   double sensitivity = 1;
   double pitchGain = 1;
@@ -10,6 +10,12 @@ class HeadTrackingFusion {
   bool jitterDamping = true;
   double offsetX = 0;
   double offsetY = 0;
+  double offsetZ = 0;
+  double _verticalX = 1, _verticalY = 0;
+  double _pitchAxisX = 0, _pitchAxisY = 1;
+  // Below 20% horizontal gravity (within ~11.5 degrees of a pole), azimuth
+  // is not stable. Hold heading rather than amplify noise or turn from roll.
+  static const _minHeadingHorizontalGravity2 = .04;
 
   double? gravityPitch;
   int? _lastTimestampUs;
@@ -30,13 +36,22 @@ class HeadTrackingFusion {
   /// only a plausibility gate, not proof that acceleration is pure gravity.
   bool updateGravity(double x, double y, double z) {
     final magnitude2 = x * x + y * y + z * z;
-    if (!magnitude2.isFinite ||
-        magnitude2 < 49 ||
-        magnitude2 > 156.25 ||
-        x * x + z * z < 4) {
+    if (!magnitude2.isFinite || magnitude2 < 49 || magnitude2 > 156.25) {
       return false;
     }
-    gravityPitch = atan2(z, x).clamp(-1.45, 1.45);
+    final inverseMagnitude = 1 / sqrt(magnitude2);
+    _verticalX = x * inverseMagnitude;
+    _verticalY = y * inverseMagnitude;
+    final horizontal = sqrt(x * x + y * y);
+    gravityPitch = atan2(z, horizontal).clamp(-1.45, 1.45);
+    if (horizontal > 0.1) {
+      _pitchAxisX = -y / horizontal;
+      _pitchAxisY = x / horizontal;
+    } else {
+      // At the vertical-look pole the screen's horizontal axis is ambiguous.
+      // Gravity still supplies clamped pitch; heading is held at this pole.
+      _pitchAxisX = _pitchAxisY = 0;
+    }
     return true;
   }
 
@@ -59,17 +74,23 @@ class HeadTrackingFusion {
     dYaw = 0;
     dPitch = 0;
     absolutePitch = null;
-    if (clearGravity) gravityPitch = null;
+    if (clearGravity) {
+      this.clearGravity();
+      _verticalX = 1;
+      _verticalY = 0;
+      _pitchAxisX = 0;
+      _pitchAxisY = 1;
+    }
   }
 
   /// Uses acquisition time, never callback delivery time. Duplicate/out-of-
   /// order samples are ignored; gaps over 250 ms restart integration instead
   /// of extrapolating a resumed sensor across an unknown interval.
-  bool addGyroscope(double x, double y, int timestampUs) {
+  bool addGyroscope(double x, double y, int timestampUs, {double z = 0}) {
     dYaw = 0;
     dPitch = 0;
     absolutePitch = null;
-    if (!x.isFinite || !y.isFinite) return false;
+    if (!x.isFinite || !y.isFinite || !z.isFinite) return false;
     final previous = _lastTimestampUs;
     if (previous != null && timestampUs <= previous) return false;
     if (previous != null && timestampUs - previous > 250000) reset();
@@ -91,8 +112,16 @@ class HeadTrackingFusion {
 
     // A low angular velocity is not evidence of rest. Bias changes only via
     // explicit stationary calibration, so slow intentional turns survive.
-    var gx = x - offsetX;
-    var gy = y - offsetY;
+    final correctedX = x - offsetX;
+    final correctedY = y - offsetY;
+    final horizontal2 = _verticalX * _verticalX + _verticalY * _verticalY;
+    // Azimuth of camera forward, not the gyro's vertical component alone.
+    // Subtracting forward-axis roll from dot(gyro, gravity) cancels its Z
+    // term. This also retains correct world-up yaw when the screen is tilted.
+    var gx = horizontal2 >= _minHeadingHorizontalGravity2
+        ? (correctedX * _verticalX + correctedY * _verticalY) / horizontal2
+        : 0.0;
+    var gy = correctedX * _pitchAxisX + correctedY * _pitchAxisY;
     if (gx.abs() < 0.002) gx = 0;
     if (gy.abs() < 0.002) gy = 0;
     _yaw += gx * dt;
