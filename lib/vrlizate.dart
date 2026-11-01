@@ -43,6 +43,7 @@ export 'core/input/inertial_tap_detector.dart';
 export 'core/input/input_fusion.dart';
 export 'core/input/ultrasonic_gesture.dart';
 export 'core/input/vr_core_motion_gyroscope.dart';
+export 'core/input/vr_emudra_engine.dart';
 export 'core/input/vr_input_arbiter.dart';
 export 'core/input/vr_input_event_bus.dart';
 export 'core/input/vr_sensor_capabilities.dart';

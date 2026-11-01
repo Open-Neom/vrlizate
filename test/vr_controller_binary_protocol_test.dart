@@ -253,4 +253,118 @@ void main() {
       expect(desc1, isNot(equals(desc3)));
     });
   });
+
+  group('VrSmallestThreeQuaternion & VrCompactGamepadCodec', () {
+    test('packs unit quaternions across all 4 dominant components within < 0.15 deg (exact 0 on identity)', () {
+      final idUnpacked = VrSmallestThreeQuaternion.unpack(
+        VrSmallestThreeQuaternion.pack(Quaternion.identity()),
+      );
+      expect(idUnpacked.x, 0.0);
+      expect(idUnpacked.y, 0.0);
+      expect(idUnpacked.z, 0.0);
+      expect(idUnpacked.w, 1.0);
+
+      final samples = <Quaternion>[
+        Quaternion.identity(),
+        Quaternion.axisAngle(Vector3(1, 0, 0), pi * 0.85),
+        Quaternion.axisAngle(Vector3(0, 1, 0), pi * 0.88),
+        Quaternion.axisAngle(Vector3(0, 0, 1), pi * 0.90),
+        Quaternion.axisAngle(Vector3(0.4, -0.7, 0.58).normalized(), 1.35),
+        Quaternion.axisAngle(Vector3(-0.8, 0.2, -0.55).normalized(), 2.40),
+      ];
+
+      for (final q in samples) {
+        final packed = VrSmallestThreeQuaternion.pack(q);
+        expect(packed, inInclusiveRange(0, 0xFFFFFFFF));
+        final unpacked = VrSmallestThreeQuaternion.unpack(packed);
+        final dot = (q.x * unpacked.x +
+                q.y * unpacked.y +
+                q.z * unpacked.z +
+                q.w * unpacked.w)
+            .abs()
+            .clamp(0.0, 1.0);
+        final angleDeg = 2.0 * acos(dot) * 180.0 / pi;
+        expect(angleDeg, lessThan(0.15));
+      }
+    });
+
+    test('encodes full gamepad state into 46 bytes (-94% vs JSON) and round-trips', () {
+      const codec = VrCompactGamepadCodec();
+      final rot = Quaternion.axisAngle(
+        Vector3(0.3, 0.8, -0.5).normalized(),
+        1.1,
+      );
+      final frame = VrCompactGamepadFrame(
+        sequence: 54321,
+        senderTimestampMicroseconds: 98765432,
+        orientation: rot,
+        angularVelocity: Vector3(2.4, -1.8, 0.6),
+        stickX: -0.72,
+        stickY: 0.48,
+        lookX: 0.35,
+        lookY: -0.90,
+        laserX: 0.22,
+        laserY: -0.15,
+        steering: -0.64,
+        drivingTilt: 0.28,
+        throttle: 0.82,
+        brake: 0.12,
+        passthroughMix: 0.60,
+        passthroughActive: true,
+        spatialHudVisible: true,
+        modeIndex: 2,
+        hostModeRevision: 12,
+        trigger: true,
+        btnA: true,
+        btnB: false,
+        btnX: true,
+        btnY: false,
+        btnGrip: true,
+        laserSlideActive: true,
+        motionAvailable: true,
+        rangeMeters: 0.48,
+      );
+
+      final encoded = codec.encode(frame);
+      expect(encoded.length, VrCompactGamepadCodec.packetLength);
+      expect(encoded.length, 46);
+      expect(
+        VrRemoteBinaryCodec.inspectPacketType(encoded),
+        VrRemoteBinaryCodec.packetTypeFullGamepad,
+      );
+
+      final decoded = codec.tryDecode(encoded)!;
+      expect(decoded.sequence, 54321);
+      expect(decoded.stickX, closeTo(-0.72, 0.001));
+      expect(decoded.stickY, closeTo(0.48, 0.001));
+      expect(decoded.lookX, closeTo(0.35, 0.001));
+      expect(decoded.lookY, closeTo(-0.90, 0.001));
+      expect(decoded.laserX, closeTo(0.22, 0.001));
+      expect(decoded.laserY, closeTo(-0.15, 0.001));
+      expect(decoded.steering, closeTo(-0.64, 0.001));
+      expect(decoded.drivingTilt, closeTo(0.28, 0.01));
+      expect(decoded.throttle, closeTo(0.82, 0.005));
+      expect(decoded.brake, closeTo(0.12, 0.005));
+      expect(decoded.passthroughMix, closeTo(0.60, 0.005));
+      expect(decoded.passthroughActive, isTrue);
+      expect(decoded.spatialHudVisible, isTrue);
+      expect(decoded.modeIndex, 2);
+      expect(decoded.hostModeRevision, 12);
+      expect(decoded.trigger, isTrue);
+      expect(decoded.btnA, isTrue);
+      expect(decoded.btnB, isFalse);
+      expect(decoded.btnX, isTrue);
+      expect(decoded.btnGrip, isTrue);
+      expect(decoded.laserSlideActive, isTrue);
+      expect(decoded.motionAvailable, isTrue);
+      expect(decoded.rangeMeters, closeTo(0.48, 0.01));
+
+      final dot = (rot.x * decoded.orientation.x +
+              rot.y * decoded.orientation.y +
+              rot.z * decoded.orientation.z +
+              rot.w * decoded.orientation.w)
+          .abs();
+      expect(dot, greaterThan(0.9999));
+    });
+  });
 }
