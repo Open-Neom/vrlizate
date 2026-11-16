@@ -64,7 +64,7 @@ abstract interface class VrDirectCoreMotion {
 /// - Real-time thermal throttling queries (`PowerManager.getCurrentThermalStatus`
 ///   on Android and `NSProcessInfo.thermalState` on iOS/macOS),
 /// - Zero-unpack Android Storage Access Framework (`ContentResolver.openFileDescriptor`
-///   `detachFd`) for `.vrlz` v2 streaming (`vrlizate_apps`),
+///   `detachFd`) for `.vrlz` streaming (`vrlizate_apps`),
 /// - Native `JavaVM*` and `Application` context handles for OpenXR (`vrlizate_scene`).
 abstract interface class VrDirectDeviceBridge {
   static VrDirectDeviceBridge get instance => impl.directDeviceBridgeInstance;
