@@ -367,6 +367,10 @@ class VrCompactGamepadFrame {
     this.stickClick = false,
     this.recenter = false,
     this.moveAtEdge = false,
+    this.dpadUp = false,
+    this.dpadDown = false,
+    this.dpadLeft = false,
+    this.dpadRight = false,
     this.laserSlideActive = false,
     this.pointerPoseReady = false,
     this.controllerVisible = true,
@@ -411,7 +415,14 @@ class VrCompactGamepadFrame {
   final bool stickClick;
   final bool recenter;
   final bool moveAtEdge;
+  final bool dpadUp;
+  final bool dpadDown;
+  final bool dpadLeft;
+  final bool dpadRight;
   final bool laserSlideActive;
+
+  double get dpadX => (dpadRight ? 1.0 : 0.0) - (dpadLeft ? 1.0 : 0.0);
+  double get dpadY => (dpadUp ? 1.0 : 0.0) - (dpadDown ? 1.0 : 0.0);
 
   /// Sender-observed upright landscape posture at snapshot creation.
   /// Legacy senders default false; this is not heading or positional tracking.
@@ -488,7 +499,12 @@ class VrCompactGamepadCodec {
     buf[36] = (f.brake.clamp(0.0, 1.0) * 255.0).round();
 
     final hasRev = f.hostModeRevision != null && f.hostModeRevision! >= 0;
-    buf[37] = (f.modeIndex.clamp(0, 7)) | (hasRev ? 0x80 : 0);
+    var modeFlags = (f.modeIndex.clamp(0, 7)) | (hasRev ? 0x80 : 0);
+    if (f.dpadUp) modeFlags |= 1 << 3;
+    if (f.dpadDown) modeFlags |= 1 << 4;
+    if (f.dpadLeft) modeFlags |= 1 << 5;
+    if (f.dpadRight) modeFlags |= 1 << 6;
+    buf[37] = modeFlags;
     bd.setUint16(
       38,
       hasRev ? (f.hostModeRevision! & 0xFFFF) : 0,
@@ -587,6 +603,10 @@ class VrCompactGamepadCodec {
       stickClick: (f16 & (1 << 9)) != 0,
       recenter: (f16 & (1 << 10)) != 0,
       moveAtEdge: (f16 & (1 << 11)) != 0,
+      dpadUp: (modeByte & (1 << 3)) != 0,
+      dpadDown: (modeByte & (1 << 4)) != 0,
+      dpadLeft: (modeByte & (1 << 5)) != 0,
+      dpadRight: (modeByte & (1 << 6)) != 0,
       laserSlideActive: (f16 & (1 << 12)) != 0,
       pointerPoseReady: (f8 & (1 << 3)) != 0,
       controllerVisible: (f16 & (1 << 13)) != 0,
