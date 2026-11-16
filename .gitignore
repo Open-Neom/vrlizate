@@ -24,5 +24,6 @@ Thumbs.db
 
 # Generated
 *.g.dart
+!lib/src/third_party/*.g.dart
 *.freezed.dart
 doc/api/

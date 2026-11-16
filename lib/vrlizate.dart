@@ -25,6 +25,9 @@ library;
 export 'core/math/aabb.dart';
 export 'core/math/transform3d.dart';
 
+// ============ Core — Direct Native Interop (FFIgen Obj-C / JNI C-ABI) ============
+export 'core/interop/vr_direct_native_interop.dart';
+
 // ============ Core — Camera ============
 export 'core/camera/camera_rig.dart';
 export 'core/camera/vr_camera.dart';

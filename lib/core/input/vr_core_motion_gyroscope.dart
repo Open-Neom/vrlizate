@@ -3,11 +3,17 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
-/// Optional host bridge to iOS CMDeviceMotion.rotationRate, whose bias is
-/// removed by Core Motion. It carries device axes in rad/s, not absolute yaw.
+import '../interop/vr_direct_native_interop.dart';
+
+/// Direct FFI / host bridge to iOS/macOS `CMDeviceMotion.rotationRate`, whose
+/// bias is removed by Core Motion. It carries device axes in rad/s, not
+/// absolute yaw.
 ///
-/// Hosts without the bridge keep sensors_plus. A registered but unavailable,
-/// failing or malformed backend never silently switches back to raw data.
+/// On Apple platforms with `CoreMotion` hardware, [VrDirectCoreMotion] reads
+/// `CMMotionManager` directly via Objective-C FFI (`< 1 µs`, zero Swift host
+/// plugin required) whenever no custom host channel is registered. Other
+/// platforms fall back to `sensors_plus`. A registered but unavailable, failing
+/// or malformed channel backend never silently switches back to raw data.
 class VrCoreMotionGyroscope {
   VrCoreMotionGyroscope({
     MethodChannel availabilityChannel = const MethodChannel(
@@ -20,11 +26,75 @@ class VrCoreMotionGyroscope {
     this.samplingPeriod = const Duration(milliseconds: 10),
   }) : _availabilityChannel = availabilityChannel,
        _eventChannel = eventChannel,
-       _fallback = fallback ?? _defaultFallback;
+       _fallback = fallback ?? (() => _defaultFallback(samplingPeriod));
 
   static final shared = VrCoreMotionGyroscope();
-  static Stream<GyroscopeEvent> _defaultFallback() =>
-      gyroscopeEventStream(samplingPeriod: SensorInterval.fastestInterval);
+
+  static Stream<GyroscopeEvent> _defaultFallback(Duration period) {
+    final direct = VrDirectCoreMotion.shared;
+    if (direct.isDeviceMotionAvailable) {
+      return _directCoreMotionStream(direct, period);
+    }
+    return gyroscopeEventStream(samplingPeriod: SensorInterval.fastestInterval);
+  }
+
+  static Stream<GyroscopeEvent> _directCoreMotionStream(
+    VrDirectCoreMotion direct,
+    Duration period,
+  ) {
+    late final StreamController<GyroscopeEvent> controller;
+    Timer? pollTimer;
+    int? lastMicros;
+    controller = StreamController<GyroscopeEvent>(
+      onListen: () {
+        final ok = direct.startUpdates(
+          intervalSeconds: period.inMicroseconds / 1e6,
+        );
+        if (!ok) {
+          controller.addError(
+            PlatformException(code: 'head_motion_unavailable'),
+          );
+          return;
+        }
+        pollTimer = Timer.periodic(period, (_) {
+          final sample = direct.readSampleSync();
+          if (sample == null) return;
+          if (!sample.rx.isFinite ||
+              !sample.ry.isFinite ||
+              !sample.rz.isFinite ||
+              sample.rx.abs() > 100 ||
+              sample.ry.abs() > 100 ||
+              sample.rz.abs() > 100 ||
+              sample.timestampMicros <= 0) {
+            return;
+          }
+          if (lastMicros != null && sample.timestampMicros <= lastMicros!) {
+            return;
+          }
+          lastMicros = sample.timestampMicros;
+          controller.add(
+            GyroscopeEvent(
+              sample.rx,
+              sample.ry,
+              sample.rz,
+              DateTime.fromMicrosecondsSinceEpoch(sample.timestampMicros),
+            ),
+          );
+        });
+      },
+      onCancel: () {
+        pollTimer?.cancel();
+        pollTimer = null;
+        direct.stopUpdates();
+      },
+    );
+    return controller.stream;
+  }
+
+  /// Synchronous zero-serialization render-tick read from Apple `CoreMotion`
+  /// when active (`< 1 µs`), avoiding async stream / message-loop latency.
+  VrDirectMotionSample? readDirectSampleSync() =>
+      VrDirectCoreMotion.shared.readSampleSync();
 
   final MethodChannel _availabilityChannel;
   final EventChannel _eventChannel;
