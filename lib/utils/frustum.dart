@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:vector_math/vector_math.dart';
 
 import '../core/math/aabb.dart';
@@ -30,11 +32,13 @@ class VrFrustum {
       Vector4(m[3] - m[2], m[7] - m[6], m[11] - m[10], m[15] - m[14]),
     ];
 
-    // Normalize planes
+    // Normalize planes in-place without intermediate Vector3/Vector4 allocations.
     for (var i = 0; i < planes.length; i++) {
       final p = planes[i];
-      final len = Vector3(p.x, p.y, p.z).length;
-      if (len > 0) planes[i] = p / len;
+      final len2 = p.x * p.x + p.y * p.y + p.z * p.z;
+      if (len2 > 0) {
+        p.scale(1.0 / math.sqrt(len2));
+      }
     }
 
     return VrFrustum._(planes);
@@ -50,37 +54,33 @@ class VrFrustum {
     return true;
   }
 
-  /// Tests an AABB against the frustum.
+  /// Tests an AABB against the frustum with zero heap allocations.
   CullResult testAabb(Aabb aabb) {
-    bool allInside = true;
+    var allInside = true;
+    final minX = aabb.min.x;
+    final minY = aabb.min.y;
+    final minZ = aabb.min.z;
+    final maxX = aabb.max.x;
+    final maxY = aabb.max.y;
+    final maxZ = aabb.max.z;
 
-    for (final plane in planes) {
-      // Find the positive vertex (furthest along plane normal)
-      final pVertex = Vector3(
-        plane.x >= 0 ? aabb.max.x : aabb.min.x,
-        plane.y >= 0 ? aabb.max.y : aabb.min.y,
-        plane.z >= 0 ? aabb.max.z : aabb.min.z,
-      );
+    for (var i = 0; i < planes.length; i++) {
+      final plane = planes[i];
+      final px = plane.x;
+      final py = plane.y;
+      final pz = plane.z;
+      final pw = plane.w;
 
-      // Find the negative vertex (closest along plane normal)
-      final nVertex = Vector3(
-        plane.x >= 0 ? aabb.min.x : aabb.max.x,
-        plane.y >= 0 ? aabb.min.y : aabb.max.y,
-        plane.z >= 0 ? aabb.min.z : aabb.max.z,
-      );
-
-      final pDist =
-          plane.x * pVertex.x +
-          plane.y * pVertex.y +
-          plane.z * pVertex.z +
-          plane.w;
-      final nDist =
-          plane.x * nVertex.x +
-          plane.y * nVertex.y +
-          plane.z * nVertex.z +
-          plane.w;
-
+      final posX = px >= 0 ? maxX : minX;
+      final posY = py >= 0 ? maxY : minY;
+      final posZ = pz >= 0 ? maxZ : minZ;
+      final pDist = px * posX + py * posY + pz * posZ + pw;
       if (pDist < 0) return CullResult.outside; // Entirely outside
+
+      final negX = px >= 0 ? minX : maxX;
+      final negY = py >= 0 ? minY : maxY;
+      final negZ = pz >= 0 ? minZ : maxZ;
+      final nDist = px * negX + py * negY + pz * negZ + pw;
       if (nDist < 0) allInside = false; // Partially inside
     }
 

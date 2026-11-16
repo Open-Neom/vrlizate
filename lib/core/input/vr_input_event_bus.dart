@@ -46,6 +46,12 @@ enum VrInputType {
 
   /// Recalibrate the current viewer heading without moving its world position.
   recenter,
+
+  /// Left secondary shoulder, with separate press and release states.
+  buttonZL,
+
+  /// Right secondary shoulder, with separate press and release states.
+  buttonZR,
 }
 
 /// Hardware or software source that originated the input event.

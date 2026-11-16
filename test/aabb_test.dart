@@ -69,5 +69,38 @@ void main() {
       expect(a.min.x, closeTo(-6, 1e-6));
       expect(a.max.x, closeTo(6, 1e-6));
     });
+
+    test(
+      'transformAffineInto and expandBoundsInPlace match 8-corner transformed across rotation/scale/translation',
+      () {
+        final box = Aabb(
+          min: Vector3(-1.25, 0.4, -3.5),
+          max: Vector3(2.75, 4.1, 0.8),
+        );
+        final matrix = Matrix4.compose(
+          Vector3(12.5, -3.2, 8.75),
+          Quaternion.euler(0.62, -1.14, 0.37),
+          Vector3(1.8, -0.75, 2.4),
+        );
+        final expected = box.transformed(matrix);
+        final out = Aabb();
+        box.transformAffineInto(matrix, out);
+
+        expect(out.min.x, closeTo(expected.min.x, 1e-9));
+        expect(out.min.y, closeTo(expected.min.y, 1e-9));
+        expect(out.min.z, closeTo(expected.min.z, 1e-9));
+        expect(out.max.x, closeTo(expected.max.x, 1e-9));
+        expect(out.max.y, closeTo(expected.max.y, 1e-9));
+        expect(out.max.z, closeTo(expected.max.z, 1e-9));
+
+        final merged = Aabb(
+          min: Vector3(-20, 0, 0),
+          max: Vector3(-19, 1, 1),
+        )..expandBoundsInPlace(out);
+        expect(merged.min.x, closeTo(-20, 1e-9));
+        expect(merged.max.x, closeTo(expected.max.x, 1e-9));
+        expect(merged.max.z, closeTo(expected.max.z, 1e-9));
+      },
+    );
   });
 }

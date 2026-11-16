@@ -361,11 +361,14 @@ class VrCompactGamepadFrame {
     this.btnY = false,
     this.btnL = false,
     this.btnR = false,
+    this.btnZL = false,
+    this.btnZR = false,
     this.btnGrip = false,
     this.stickClick = false,
     this.recenter = false,
     this.moveAtEdge = false,
     this.laserSlideActive = false,
+    this.pointerPoseReady = false,
     this.controllerVisible = true,
     this.drivingPaused = false,
     this.motionAvailable = false,
@@ -402,11 +405,17 @@ class VrCompactGamepadFrame {
   final bool btnY;
   final bool btnL;
   final bool btnR;
+  final bool btnZL;
+  final bool btnZR;
   final bool btnGrip;
   final bool stickClick;
   final bool recenter;
   final bool moveAtEdge;
   final bool laserSlideActive;
+
+  /// Sender-observed upright landscape posture at snapshot creation.
+  /// Legacy senders default false; this is not heading or positional tracking.
+  final bool pointerPoseReady;
   final bool controllerVisible;
   final bool drivingPaused;
   final bool motionAvailable;
@@ -511,6 +520,9 @@ class VrCompactGamepadCodec {
     if (f.passthroughActive) flags8 |= 1 << 0;
     if (f.spatialHudVisible) flags8 |= 1 << 1;
     if (validRange) flags8 |= 1 << 2;
+    if (f.pointerPoseReady) flags8 |= 1 << 3;
+    if (f.btnZL) flags8 |= 1 << 4;
+    if (f.btnZR) flags8 |= 1 << 5;
     buf[42] = flags8;
     buf[43] = (f.passthroughMix.clamp(0.0, 1.0) * 255.0).round();
     bd.setUint16(
@@ -569,11 +581,14 @@ class VrCompactGamepadCodec {
       btnY: (f16 & (1 << 5)) != 0,
       btnL: (f16 & (1 << 6)) != 0,
       btnR: (f16 & (1 << 7)) != 0,
+      btnZL: (f8 & (1 << 4)) != 0,
+      btnZR: (f8 & (1 << 5)) != 0,
       btnGrip: (f16 & (1 << 8)) != 0,
       stickClick: (f16 & (1 << 9)) != 0,
       recenter: (f16 & (1 << 10)) != 0,
       moveAtEdge: (f16 & (1 << 11)) != 0,
       laserSlideActive: (f16 & (1 << 12)) != 0,
+      pointerPoseReady: (f8 & (1 << 3)) != 0,
       controllerVisible: (f16 & (1 << 13)) != 0,
       drivingPaused: (f16 & (1 << 14)) != 0,
       motionAvailable: (f16 & (1 << 15)) != 0,

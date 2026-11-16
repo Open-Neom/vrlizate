@@ -29,6 +29,12 @@ export 'core/math/transform3d.dart';
 export 'core/camera/camera_rig.dart';
 export 'core/camera/vr_camera.dart';
 
+// ============ Core — Optical & Kinematic Tracking ============
+export 'core/tracking/kabsch_horizon_aligner.dart';
+export 'core/tracking/kinematic_bone_chain.dart';
+export 'core/tracking/multiview_dlt_triangulator.dart';
+export 'core/tracking/temporal_landmark_stabilizer.dart';
+
 // ============ Core — Input ============
 export 'core/input/controller_state.dart';
 export 'core/input/desktop_input.dart';
@@ -151,6 +157,8 @@ export 'debug/grid_floor.dart';
 // ============ Legacy Components ============
 export 'components/vr_element.dart';
 export 'components/vr_scene.dart';
+export 'scene/vr_audio_reactive_360_engine.dart';
+export 'ui/vr_spatial_360_painters.dart';
 
 // ============ Utils ============
 export 'utils/constants/vr_core_constants.dart';

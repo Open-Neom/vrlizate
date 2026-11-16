@@ -132,11 +132,35 @@ class Node {
   /// Override for custom rendering.
   void onRender(Canvas canvas, Matrix4 viewProjection) {}
 
+  static bool _isStandardFiniteMatrix(Matrix4 m) {
+    if (m.runtimeType != Matrix4) return false;
+    final s = m.storage;
+    return (s[0] +
+            s[1] +
+            s[2] +
+            s[4] +
+            s[5] +
+            s[6] +
+            s[8] +
+            s[9] +
+            s[10] +
+            s[12] +
+            s[13] +
+            s[14])
+        .isFinite;
+  }
+
   /// Computes the AABB of this node's own geometry in world space
   /// (without descendants). Used for self-hits in raycasting and physics.
   Aabb get ownWorldAabb {
     final local = localAabb;
-    return local.transformed(worldMatrix);
+    final m = worldMatrix;
+    if (_isStandardFiniteMatrix(m)) {
+      final out = Aabb();
+      local.transformAffineInto(m, out);
+      return out;
+    }
+    return local.transformed(m);
   }
 
   /// Computes the AABB of this node AND all its descendants in world space.
@@ -146,11 +170,20 @@ class Node {
   /// hierarchy change in the subtree.
   Aabb get worldAabb {
     if (_worldAabbDirty || _worldAabbCache == null) {
-      final result = ownWorldAabb;
-      for (final child in _children) {
-        result.expandToIncludeAabb(child.worldAabb);
+      final m = worldMatrix;
+      if (_isStandardFiniteMatrix(m)) {
+        final cache = _worldAabbCache ??= Aabb();
+        localAabb.transformAffineInto(m, cache);
+        for (var i = 0; i < _children.length; i++) {
+          cache.expandBoundsInPlace(_children[i].worldAabb);
+        }
+      } else {
+        final result = localAabb.transformed(m);
+        for (final child in _children) {
+          result.expandToIncludeAabb(child.worldAabb);
+        }
+        _worldAabbCache = result;
       }
-      _worldAabbCache = result;
       _worldAabbDirty = false;
     }
     return _worldAabbCache!;

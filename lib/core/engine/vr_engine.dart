@@ -244,10 +244,11 @@ class VREngine extends ChangeNotifier {
     final pointer = gazePointer;
     if (pointer == null) return null;
 
-    for (final hit in _raycaster.cast(interactionRay, scene.root)) {
-      if (hit.node.pointable != null) return hit;
-    }
-    return null;
+    return _raycaster.castNearest(
+      interactionRay,
+      scene.root,
+      where: (node) => node.pointable != null,
+    );
   }
 
   /// Enables zero-latency temple/visor physical tap detection.

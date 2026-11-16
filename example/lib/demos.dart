@@ -331,7 +331,7 @@ class CockpitHudNode extends Node {
     canvas.drawLine(const Offset(0, 0.14), const Offset(0, 0.2), paint);
 
     // Speedometer and altimeter readouts
-    final speed = 12.0;
+    const speed = 12.0;
     final pos = cameraRig.position;
     final alt = pos.y + 100.0; // Simulated altitude
 

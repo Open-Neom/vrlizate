@@ -20,6 +20,8 @@ class RaycastHit {
 
 /// Raycaster for testing ray-mesh intersections in the scene.
 class Raycaster {
+  final Vector3 _inverseDirection = Vector3.zero();
+
   /// Casts a ray against all visible nodes in the tree.
   /// Returns hits sorted by distance (nearest first).
   List<RaycastHit> cast(Ray ray, Node root, {double maxDistance = 1000}) {
@@ -29,10 +31,49 @@ class Raycaster {
     return hits;
   }
 
-  /// Returns the nearest hit, or null.
-  RaycastHit? castNearest(Ray ray, Node root, {double maxDistance = 1000}) {
-    final hits = cast(ray, root, maxDistance: maxDistance);
-    return hits.isNotEmpty ? hits.first : null;
+  /// Returns the nearest accepted hit without collecting or sorting all hits.
+  /// [where] filters each node's own geometry; its children remain searchable.
+  RaycastHit? castNearest(
+    Ray ray,
+    Node root, {
+    double maxDistance = 1000,
+    bool Function(Node node)? where,
+  }) {
+    Node? nearestNode;
+    Aabb? nearestBounds;
+    var nearestDistance = maxDistance;
+
+    void visit(Node node) {
+      if (!node.visible) return;
+      // Keep the original range for subtrees. An origin inside a union AABB
+      // reports its exit distance, which may exceed a nearer child hit.
+      if (!_rayIntersectsAabb(ray, node.worldAabb, maxDistance)) return;
+      if (where == null || where(node)) {
+        final bounds = node.ownWorldAabb;
+        final distance = _rayAabbIntersection(ray, bounds);
+        if (distance != null &&
+            distance <= maxDistance &&
+            (nearestNode == null || distance < nearestDistance)) {
+          nearestNode = node;
+          nearestBounds = bounds;
+          nearestDistance = distance;
+        }
+      }
+      for (final child in node.children) {
+        visit(child);
+      }
+    }
+
+    visit(root);
+    final node = nearestNode;
+    if (node == null) return null;
+    final point = ray.at(nearestDistance);
+    return RaycastHit(
+      node: node,
+      point: point,
+      distance: nearestDistance,
+      normal: _estimateNormal(point, nearestBounds!),
+    );
   }
 
   void _castRecursive(
@@ -80,31 +121,32 @@ class Raycaster {
 
   /// Slab method for ray-AABB intersection. Returns distance or null.
   double? _rayAabbIntersection(Ray ray, Aabb aabb) {
-    final invDir = Vector3(
+    // Retain Vector3's Float32 reciprocal rounding while reusing its storage.
+    _inverseDirection.setValues(
       ray.direction.x != 0 ? 1 / ray.direction.x : double.infinity,
       ray.direction.y != 0 ? 1 / ray.direction.y : double.infinity,
       ray.direction.z != 0 ? 1 / ray.direction.z : double.infinity,
     );
 
-    final t1 = (aabb.min.x - ray.origin.x) * invDir.x;
-    final t2 = (aabb.max.x - ray.origin.x) * invDir.x;
-    final t3 = (aabb.min.y - ray.origin.y) * invDir.y;
-    final t4 = (aabb.max.y - ray.origin.y) * invDir.y;
-    final t5 = (aabb.min.z - ray.origin.z) * invDir.z;
-    final t6 = (aabb.max.z - ray.origin.z) * invDir.z;
+    final t1 = (aabb.min.x - ray.origin.x) * _inverseDirection.x;
+    final t2 = (aabb.max.x - ray.origin.x) * _inverseDirection.x;
+    final t3 = (aabb.min.y - ray.origin.y) * _inverseDirection.y;
+    final t4 = (aabb.max.y - ray.origin.y) * _inverseDirection.y;
+    final t5 = (aabb.min.z - ray.origin.z) * _inverseDirection.z;
+    final t6 = (aabb.max.z - ray.origin.z) * _inverseDirection.z;
 
-    final tMin = [t1, t2].reduce((a, b) => a < b ? a : b);
-    final tMax = [t1, t2].reduce((a, b) => a > b ? a : b);
-    final tyMin = [t3, t4].reduce((a, b) => a < b ? a : b);
-    final tyMax = [t3, t4].reduce((a, b) => a > b ? a : b);
+    final tMin = t1 < t2 ? t1 : t2;
+    final tMax = t1 > t2 ? t1 : t2;
+    final tyMin = t3 < t4 ? t3 : t4;
+    final tyMax = t3 > t4 ? t3 : t4;
 
     double enterT = tMin > tyMin ? tMin : tyMin;
     double exitT = tMax < tyMax ? tMax : tyMax;
 
     if (enterT > exitT) return null;
 
-    final tzMin = [t5, t6].reduce((a, b) => a < b ? a : b);
-    final tzMax = [t5, t6].reduce((a, b) => a > b ? a : b);
+    final tzMin = t5 < t6 ? t5 : t6;
+    final tzMax = t5 > t6 ? t5 : t6;
 
     enterT = enterT > tzMin ? enterT : tzMin;
     exitT = exitT < tzMax ? exitT : tzMax;
