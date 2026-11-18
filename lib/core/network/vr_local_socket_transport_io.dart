@@ -16,6 +16,7 @@ import 'vr_pairing_payload.dart';
 class VrLocalSocketTransport implements VrControllerTransport {
   static const bool isSupported = true;
   static const int defaultMaxMessageCharacters = 64 * 1024;
+  static const int maxPendingPings = 64;
 
   final Duration authenticationTimeout;
   final Duration latencyTimeout;
@@ -215,14 +216,62 @@ class VrLocalSocketTransport implements VrControllerTransport {
   void _attachSocket(Socket socket) {
     _socket = socket;
     socket.setOption(SocketOption.tcpNoDelay, true);
+    final lineBuffer = StringBuffer();
     _lineSubscription = socket
         .cast<List<int>>()
         .transform(utf8.decoder)
-        .transform(const LineSplitter())
         .listen(
-          _handleLine,
+          (String chunk) {
+            var start = 0;
+            while (start < chunk.length) {
+              if (_socket == null || _disposed) return;
+              final newlineIndex = chunk.indexOf('\n', start);
+              if (newlineIndex == -1) {
+                final remaining = chunk.length - start;
+                if (lineBuffer.length + remaining > maxMessageCharacters) {
+                  lineBuffer.clear();
+                  _protocolFailure(
+                    'message_too_large',
+                    'Message exceeded $maxMessageCharacters characters.',
+                  );
+                  return;
+                }
+                lineBuffer.write(chunk.substring(start));
+                break;
+              }
+              final segmentLength = newlineIndex - start;
+              if (lineBuffer.length + segmentLength > maxMessageCharacters) {
+                lineBuffer.clear();
+                _protocolFailure(
+                  'message_too_large',
+                  'Message exceeded $maxMessageCharacters characters.',
+                );
+                return;
+              }
+              var line = lineBuffer.isEmpty
+                  ? chunk.substring(start, newlineIndex)
+                  : (lineBuffer..write(chunk.substring(start, newlineIndex)))
+                        .toString();
+              lineBuffer.clear();
+              if (line.endsWith('\r')) {
+                line = line.substring(0, line.length - 1);
+              }
+              start = newlineIndex + 1;
+              _handleLine(line);
+            }
+          },
           onError: _handleSocketError,
-          onDone: _handleSocketDone,
+          onDone: () {
+            if (lineBuffer.isNotEmpty && _socket != null && !_disposed) {
+              var tail = lineBuffer.toString();
+              lineBuffer.clear();
+              if (tail.endsWith('\r')) {
+                tail = tail.substring(0, tail.length - 1);
+              }
+              _handleLine(tail);
+            }
+            _handleSocketDone();
+          },
           cancelOnError: false,
         );
   }
@@ -335,9 +384,11 @@ class VrLocalSocketTransport implements VrControllerTransport {
       case VrPongMessage(:final id, :final sentTimestampMicroseconds):
         final completer = _pendingPings.remove(id);
         if (completer != null && !completer.isCompleted) {
-          final elapsed = Duration(
-            microseconds: _nowMicroseconds() - sentTimestampMicroseconds,
-          );
+          final rawDelta = _nowMicroseconds() - sentTimestampMicroseconds;
+          final clampedUs = rawDelta < 0
+              ? 0
+              : (rawDelta > 3600000000 ? 3600000000 : rawDelta);
+          final elapsed = Duration(microseconds: clampedUs);
           completer.complete(elapsed);
           _latencyController.add(elapsed);
         }
@@ -380,6 +431,9 @@ class VrLocalSocketTransport implements VrControllerTransport {
   @override
   Future<Duration> measureLatency() {
     _ensureConnected();
+    if (_pendingPings.length >= maxPendingPings) {
+      throw StateError('Too many pending latency measurements.');
+    }
     final id = _nextPingId++;
     final completer = Completer<Duration>();
     _pendingPings[id] = completer;

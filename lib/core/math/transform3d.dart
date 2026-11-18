@@ -27,16 +27,26 @@ class Transform3D {
     _dirty = true;
   }
 
+  static void _normalizeSafe(Quaternion q) {
+    final lenSq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    if (!lenSq.isFinite || lenSq < 1e-12) {
+      q.setValues(0.0, 0.0, 0.0, 1.0);
+    } else {
+      q.normalize();
+    }
+  }
+
   Quaternion get rotation => _rotation;
   set rotation(Quaternion q) {
-    _rotation = q..normalize();
+    _rotation = q;
+    _normalizeSafe(_rotation);
     _dirty = true;
   }
 
   /// Copies a rotation into the existing quaternion without replacing storage.
   void setRotationFrom(Quaternion value) {
     _rotation.setFrom(value);
-    _rotation.normalize();
+    _normalizeSafe(_rotation);
     _dirty = true;
   }
 
@@ -78,16 +88,19 @@ class Transform3D {
 
   void rotate(Quaternion delta) {
     _rotation = delta * _rotation;
-    _rotation.normalize();
+    _normalizeSafe(_rotation);
     _dirty = true;
   }
 
   void rotateEuler(double yaw, double pitch, double roll) {
+    if (!yaw.isFinite || !pitch.isFinite || !roll.isFinite) return;
     final q = Quaternion.euler(yaw, pitch, roll);
     rotate(q);
   }
 
   void lookAt(Vector3 target, {Vector3? up}) {
+    final diff = target - _position;
+    if (!diff.length2.isFinite || diff.length2 < 1e-12) return;
     final upDir = up ?? Vector3(0, 1, 0);
 
     final m = makeViewMatrix(_position, target, upDir);
@@ -96,7 +109,7 @@ class Transform3D {
     // Transposing here would flip the vertical component of the forward
     // vector (cameras looking down ended up looking up — scene culled).
     _rotation = Quaternion.fromRotation(m.getRotation());
-    _rotation.normalize();
+    _normalizeSafe(_rotation);
     _dirty = true;
   }
 

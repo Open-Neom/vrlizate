@@ -1,9 +1,20 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vector_math/vector_math.dart';
-import 'package:vrlizate/vrlizate.dart';
+import 'package:vrlizate/core/camera/camera_rig.dart';
+import 'package:vrlizate/core/input/vr_input_arbiter.dart';
+import 'package:vrlizate/core/input/vr_input_event_bus.dart';
+import 'package:vrlizate/core/network/vr_controller_protocol.dart';
+import 'package:vrlizate/core/network/vr_controller_transport.dart';
+import 'package:vrlizate/core/network/vr_local_socket_transport.dart';
+import 'package:vrlizate/core/network/vr_pairing_payload.dart';
+import 'package:vrlizate/core/network/vr_remote_controller_session.dart';
+import 'package:vrlizate/core/network/vr_remote_imu_controller.dart';
+import 'package:vrlizate/scene/scene.dart';
 
 void main() {
   group('VrLocalSocketTransport', () {
@@ -119,6 +130,34 @@ void main() {
 
       expect(visor.isListening, isTrue);
       expect(visor.isConnected, isFalse);
+    });
+
+    test('drops hostile unauthenticated stream exceeding maxMessageCharacters without newline', () async {
+      final cappedVisor = VrLocalSocketTransport(maxMessageCharacters: 256);
+      try {
+        final invitation = await cappedVisor.listen(
+          advertisedHost: '127.0.0.1',
+          bindHost: '127.0.0.1',
+          sessionToken: 'token',
+        );
+        final rawSocket = await Socket.connect(
+          invitation.host,
+          invitation.port,
+        );
+        try {
+          rawSocket.add(utf8.encode('A' * 1024));
+          await rawSocket.flush();
+          await _waitFor(
+            () => cappedVisor.state == VrTransportConnectionState.listening,
+          );
+          expect(cappedVisor.isListening, isTrue);
+          expect(cappedVisor.isConnected, isFalse);
+        } finally {
+          await rawSocket.close();
+        }
+      } finally {
+        await cappedVisor.dispose();
+      }
     });
 
     test('drives a visual controller end to end from child IMU', () async {

@@ -31,6 +31,24 @@ class Node {
   int get childCount => _children.length;
 
   void addChild(Node child) {
+    if (identical(child, this)) {
+      throw ArgumentError.value(
+        child,
+        'child',
+        'Node cannot be added as a child of itself.',
+      );
+    }
+    var ancestor = _parent;
+    while (ancestor != null) {
+      if (identical(ancestor, child)) {
+        throw ArgumentError.value(
+          child,
+          'child',
+          'Adding an ancestor as a child would create a scene-graph cycle.',
+        );
+      }
+      ancestor = ancestor._parent;
+    }
     child._parent?._children.remove(child);
     child._parent = this;
     _children.add(child);
@@ -110,7 +128,7 @@ class Node {
 
   /// Called once per frame before rendering.
   void update(double dt) {
-    if (!visible) return;
+    if (!visible || !dt.isFinite || dt < 0) return;
     onUpdate(dt);
     for (final child in _children) {
       child.update(dt);

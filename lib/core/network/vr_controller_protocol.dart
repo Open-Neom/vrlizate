@@ -120,7 +120,7 @@ class VrControllerProfile {
     required double heightMeters,
     required List<VrControlDescriptor> controls,
   }) {
-    if (protocolVersion <= 0) {
+    if (!protocolVersion.isFinite || protocolVersion <= 0) {
       throw RangeError.value(
         protocolVersion,
         'protocolVersion',
@@ -131,6 +131,13 @@ class VrControllerProfile {
     _requireNonEmpty(deviceName, 'deviceName');
     _requirePositive(widthMeters, 'widthMeters');
     _requirePositive(heightMeters, 'heightMeters');
+    if (controls.length > 128) {
+      throw ArgumentError.value(
+        controls.length,
+        'controls',
+        'At most 128 controls are supported per profile.',
+      );
+    }
     final ids = <String>{};
     for (final control in controls) {
       if (!ids.add(control.id)) {
@@ -263,17 +270,18 @@ class VrRemotePoseFrame {
     VrRangeSource? rangeSource,
     double? rangeConfidence,
   }) {
-    if (sequence < 0) {
+    if (!sequence.isFinite || sequence < 0) {
       throw RangeError.value(sequence, 'sequence', 'Must not be negative.');
     }
-    if (senderTimestampMicroseconds < 0) {
+    if (!senderTimestampMicroseconds.isFinite ||
+        senderTimestampMicroseconds < 0) {
       throw RangeError.value(
         senderTimestampMicroseconds,
         'senderTimestampMicroseconds',
         'Must not be negative.',
       );
     }
-    if (buttonsBitset < 0) {
+    if (!buttonsBitset.isFinite || buttonsBitset < 0) {
       throw RangeError.value(
         buttonsBitset,
         'buttonsBitset',
@@ -552,6 +560,8 @@ class VrInputEventSnapshot {
     VrCoreConstants.keyTimestampUs: timestampMicrosecondsSinceEpoch,
   };
 
+  static const int _maxSafeEpochMs = 8640000000000000;
+
   factory VrInputEventSnapshot.fromJson(Map<String, dynamic> json) {
     final rawData = json[VrCoreConstants.keyData];
     final decodedData = _fromWireValue(rawData);
@@ -561,10 +571,14 @@ class VrInputEventSnapshot {
       );
     }
     final targetId = json[VrCoreConstants.keyTargetId];
-    if (targetId != null && targetId is! String) {
-      throw const FormatException(
-        'Invalid input field "targetId": expected a string.',
-      );
+    if (targetId != null) {
+      if (targetId is! String ||
+          targetId.length > 256 ||
+          _disallowedWireControlOrBidi.hasMatch(targetId)) {
+        throw const FormatException(
+          'Invalid input field "targetId": expected a safe bounded string.',
+        );
+      }
     }
     final active = json[VrCoreConstants.keyActive];
     if (active is! bool) {
@@ -585,16 +599,23 @@ class VrInputEventSnapshot {
     );
   }
 
-  VrInputEvent toEvent() => VrInputEvent(
-    type: type,
-    source: source,
-    targetId: targetId,
-    data: data,
-    active: active,
-    timestamp: DateTime.fromMicrosecondsSinceEpoch(
-      timestampMicrosecondsSinceEpoch,
-    ),
-  );
+  VrInputEvent toEvent() {
+    final us = timestampMicrosecondsSinceEpoch;
+    final DateTime safeTimestamp;
+    if (!us.isFinite || (us / 1000).abs() > _maxSafeEpochMs) {
+      safeTimestamp = DateTime.fromMillisecondsSinceEpoch(0);
+    } else {
+      safeTimestamp = DateTime.fromMicrosecondsSinceEpoch(us);
+    }
+    return VrInputEvent(
+      type: type,
+      source: source,
+      targetId: targetId,
+      data: data,
+      active: active,
+      timestamp: safeTimestamp,
+    );
+  }
 }
 
 sealed class VrControllerMessage {
@@ -830,26 +851,69 @@ final class VrErrorMessage extends VrControllerMessage {
 
 /// Newline-friendly JSON codec used by the reference socket transport.
 class VrControllerMessageCodec {
+  static const int maxEncodedLength = 262144;
+
   const VrControllerMessageCodec();
 
   String encode(VrControllerMessage message) => jsonEncode(message.toJson());
 
   VrControllerMessage decode(String encoded) {
+    if (encoded.length > maxEncodedLength) {
+      throw const FormatException(
+        'Controller message exceeds maximum wire payload size.',
+      );
+    }
     final value = jsonDecode(encoded);
     if (value is! Map) {
       throw const FormatException('Controller message must be a JSON object.');
     }
-    return VrControllerMessage.fromJson(
-      value.map((key, value) => MapEntry(key.toString(), value)),
-    );
+    return VrControllerMessage.fromJson(_jsonMapValue(value, 'root'));
   }
 }
 
-Object? _toWireValue(Object? value) {
-  if (value == null || value is bool || value is num || value is String) {
+const int _maxWireDepth = 32;
+const int _maxWireListLength = 4096;
+const int _maxWireMapEntries = 512;
+
+final RegExp _disallowedWireControlOrBidi = RegExp(
+  r'[\x00-\x1F\x7F-\x9F\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]',
+);
+
+bool _isForbiddenWireMapKey(String key) =>
+    key == '__proto__' || key == 'constructor' || key == 'prototype';
+
+Object? _toWireValue(Object? value, [int depth = 0]) {
+  if (depth > _maxWireDepth) {
+    throw ArgumentError.value(
+      depth,
+      'data',
+      'Wire payload exceeds maximum nesting depth.',
+    );
+  }
+  if (value == null || value is bool || value is String) {
+    return value;
+  }
+  if (value is num) {
+    if (!value.isFinite) {
+      throw ArgumentError.value(
+        value,
+        'data',
+        'Numeric wire payload values must be finite.',
+      );
+    }
     return value;
   }
   if (value is Quaternion) {
+    if (!value.x.isFinite ||
+        !value.y.isFinite ||
+        !value.z.isFinite ||
+        !value.w.isFinite) {
+      throw ArgumentError.value(
+        value,
+        'data',
+        'Quaternion wire components must be finite.',
+      );
+    }
     return <String, Object?>{
       VrCoreConstants.keyWireType: VrCoreConstants.wireTypeQuaternion,
       VrCoreConstants.keyWireValue: <double>[
@@ -861,19 +925,51 @@ Object? _toWireValue(Object? value) {
     };
   }
   if (value is Vector2) {
+    if (!value.x.isFinite || !value.y.isFinite) {
+      throw ArgumentError.value(
+        value,
+        'data',
+        'Vector2 wire components must be finite.',
+      );
+    }
     return <String, Object?>{
       VrCoreConstants.keyWireType: VrCoreConstants.wireTypeVector2,
       VrCoreConstants.keyWireValue: <double>[value.x, value.y],
     };
   }
   if (value is Vector3) {
+    if (!value.x.isFinite || !value.y.isFinite || !value.z.isFinite) {
+      throw ArgumentError.value(
+        value,
+        'data',
+        'Vector3 wire components must be finite.',
+      );
+    }
     return <String, Object?>{
       VrCoreConstants.keyWireType: VrCoreConstants.wireTypeVector3,
       VrCoreConstants.keyWireValue: <double>[value.x, value.y, value.z],
     };
   }
-  if (value is List) return value.map(_toWireValue).toList(growable: false);
+  if (value is List) {
+    if (value.length > _maxWireListLength) {
+      throw ArgumentError.value(
+        value.length,
+        'data',
+        'Wire payload list exceeds maximum length.',
+      );
+    }
+    return value
+        .map((item) => _toWireValue(item, depth + 1))
+        .toList(growable: false);
+  }
   if (value is Map) {
+    if (value.length > _maxWireMapEntries) {
+      throw ArgumentError.value(
+        value.length,
+        'data',
+        'Wire payload map exceeds maximum entry count.',
+      );
+    }
     final result = <String, Object?>{};
     for (final entry in value.entries) {
       if (entry.key is! String) {
@@ -883,7 +979,15 @@ Object? _toWireValue(Object? value) {
           'Map keys must be strings.',
         );
       }
-      result[entry.key as String] = _toWireValue(entry.value);
+      final key = entry.key as String;
+      if (_isForbiddenWireMapKey(key)) {
+        throw ArgumentError.value(
+          key,
+          'data',
+          'Forbidden prototype-polluting map key.',
+        );
+      }
+      result[key] = _toWireValue(entry.value, depth + 1);
     }
     return result;
   }
@@ -894,13 +998,47 @@ Object? _toWireValue(Object? value) {
   );
 }
 
-Object? _fromWireValue(Object? value) {
-  if (value == null || value is bool || value is num || value is String) {
+Object? _fromWireValue(Object? value, [int depth = 0]) {
+  if (depth > _maxWireDepth) {
+    throw const FormatException(
+      'Decoded wire payload exceeds maximum nesting depth.',
+    );
+  }
+  if (value == null || value is bool || value is String) {
     return value;
   }
-  if (value is List) return value.map(_fromWireValue).toList(growable: false);
+  if (value is num) {
+    if (!value.isFinite) {
+      throw const FormatException(
+        'Decoded wire numeric value must be finite.',
+      );
+    }
+    return value;
+  }
+  if (value is List) {
+    if (value.length > _maxWireListLength) {
+      throw const FormatException(
+        'Decoded wire list exceeds maximum length.',
+      );
+    }
+    return value
+        .map((item) => _fromWireValue(item, depth + 1))
+        .toList(growable: false);
+  }
   if (value is Map) {
-    final map = value.map((key, value) => MapEntry(key.toString(), value));
+    if (value.length > _maxWireMapEntries) {
+      throw const FormatException(
+        'Decoded wire map exceeds maximum entry count.',
+      );
+    }
+    final map = <String, Object?>{};
+    for (final entry in value.entries) {
+      final key = entry.key.toString();
+      if (_isForbiddenWireMapKey(key)) {
+        throw FormatException('Forbidden decoded wire map key "$key".');
+      }
+      map[key] = entry.value;
+    }
     final type = map[VrCoreConstants.keyWireType];
     if (type != null) {
       final raw = map[VrCoreConstants.keyWireValue];
@@ -908,6 +1046,9 @@ Object? _fromWireValue(Object? value) {
         throw FormatException('Invalid typed wire value for "$type".');
       }
       final numbers = raw.map((item) => (item as num).toDouble()).toList();
+      if (numbers.any((n) => !n.isFinite)) {
+        throw FormatException('Non-finite typed wire value for "$type".');
+      }
       return switch (type) {
         VrCoreConstants.wireTypeQuaternion when numbers.length == 4 =>
           Quaternion(numbers[0], numbers[1], numbers[2], numbers[3]),
@@ -925,7 +1066,9 @@ Object? _fromWireValue(Object? value) {
         ),
       };
     }
-    return map.map((key, value) => MapEntry(key, _fromWireValue(value)));
+    return map.map(
+      (key, value) => MapEntry(key, _fromWireValue(value, depth + 1)),
+    );
   }
   throw FormatException('Unsupported decoded wire value ${value.runtimeType}.');
 }
@@ -937,14 +1080,25 @@ Map<String, dynamic> _jsonMapValue(Object? value, String name) {
   if (value is! Map) {
     throw FormatException('Invalid field "$name": expected an object.');
   }
-  return value.map((key, value) => MapEntry(key.toString(), value));
+  final out = <String, dynamic>{};
+  for (final entry in value.entries) {
+    final key = entry.key.toString();
+    if (_isForbiddenWireMapKey(key)) {
+      throw FormatException('Forbidden map key "$key" in "$name".');
+    }
+    out[key] = entry.value;
+  }
+  return out;
 }
 
 String _jsonString(Map<String, dynamic> json, String name) {
   final value = json[name];
-  if (value is! String || value.trim().isEmpty) {
+  if (value is! String ||
+      value.trim().isEmpty ||
+      value.length > 1024 ||
+      _disallowedWireControlOrBidi.hasMatch(value)) {
     throw FormatException(
-      'Invalid field "$name": expected a non-empty string.',
+      'Invalid field "$name": expected a safe non-empty string.',
     );
   }
   return value;
@@ -953,9 +1107,12 @@ String _jsonString(Map<String, dynamic> json, String name) {
 String? _jsonOptionalString(Map<String, dynamic> json, String name) {
   final value = json[name];
   if (value == null) return null;
-  if (value is! String || value.trim().isEmpty) {
+  if (value is! String ||
+      value.trim().isEmpty ||
+      value.length > 1024 ||
+      _disallowedWireControlOrBidi.hasMatch(value)) {
     throw FormatException(
-      'Invalid field "$name": expected a non-empty string.',
+      'Invalid field "$name": expected a safe non-empty string.',
     );
   }
   return value;
@@ -963,7 +1120,7 @@ String? _jsonOptionalString(Map<String, dynamic> json, String name) {
 
 int _jsonInt(Map<String, dynamic> json, String name) {
   final value = json[name];
-  if (value is! int) {
+  if (value is! int || !value.isFinite) {
     throw FormatException('Invalid field "$name": expected an integer.');
   }
   return value;
@@ -1013,8 +1170,14 @@ T _jsonEnum<T extends Enum>(
 }
 
 void _requireNonEmpty(String value, String name) {
-  if (value.trim().isEmpty) {
-    throw ArgumentError.value(value, name, 'Must not be empty.');
+  if (value.trim().isEmpty ||
+      value.length > 256 ||
+      _disallowedWireControlOrBidi.hasMatch(value)) {
+    throw ArgumentError.value(
+      value,
+      name,
+      'Must be a safe non-empty string of at most 256 characters.',
+    );
   }
 }
 

@@ -8,6 +8,41 @@ import 'vr_pairing_payload.dart';
 /// Unsupported-platform placeholder. Use WebRTC/WebSocket on web builds.
 class VrLocalSocketTransport implements VrControllerTransport {
   static const bool isSupported = false;
+  static const int defaultMaxMessageCharacters = 64 * 1024;
+  static const int maxPendingPings = 64;
+
+  final Duration authenticationTimeout;
+  final Duration latencyTimeout;
+  final int maxMessageCharacters;
+
+  VrLocalSocketTransport({
+    this.authenticationTimeout = const Duration(seconds: 5),
+    this.latencyTimeout = const Duration(seconds: 2),
+    this.maxMessageCharacters = defaultMaxMessageCharacters,
+    VrControllerMessageCodec codec = const VrControllerMessageCodec(),
+  }) {
+    if (authenticationTimeout <= Duration.zero) {
+      throw ArgumentError.value(
+        authenticationTimeout,
+        'authenticationTimeout',
+        'Must be positive.',
+      );
+    }
+    if (latencyTimeout <= Duration.zero) {
+      throw ArgumentError.value(
+        latencyTimeout,
+        'latencyTimeout',
+        'Must be positive.',
+      );
+    }
+    if (maxMessageCharacters <= 0) {
+      throw ArgumentError.value(
+        maxMessageCharacters,
+        'maxMessageCharacters',
+        'Must be positive.',
+      );
+    }
+  }
 
   Never _unsupported() => throw UnsupportedError(
     'VrLocalSocketTransport requires a dart:io platform.',
